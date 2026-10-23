@@ -39,7 +39,7 @@
     var root = document.getElementById('root');
     var items = NAV.slice(); if (user.role === 'admin') items = NAV.slice(0, 4).concat([['sep']], ADMIN_NAV, NAV.slice(4));
     root.innerHTML =
-      '<div class="app"><aside class="sidebar" id="sidebar"><div class="brand"><span class="brand-mark">P</span> Paper Maker</div><ul class="nav">' +
+      '<div class="app"><aside class="sidebar" id="sidebar"><div class="brand"><img class="brand-logo" src="assets/logo-mark.png" width="52" height="52" alt=""> Exam Paper Maker</div><ul class="nav">' +
       items.map(function (n) { return n[0] === 'sep' ? '<li class="sep" role="separator"></li>' : '<li><button data-nav="' + n[0] + '"><span class="ico" aria-hidden="true">' + n[1] + '</span>' + n[2] + '</button></li>'; }).join('') +
       '</ul></aside><div class="scrim" id="scrim"></div>' +
       '<div class="main"><header class="topbar"><div style="display:flex;align-items:center;gap:10px"><button class="icon-btn menu-toggle" id="menu-btn" aria-label="Open menu">☰</button><h1 id="page-title"></h1></div>' +
