@@ -51,8 +51,8 @@
         pwField('pw', 'Password', 'new-password', '(at least 6 characters)') +
         '<p class="muted auth-note">Your papers are private to your account.</p>' +
         '<button class="btn primary auth-submit">Create Account</button></form>';
-    root.innerHTML = '<div class="auth-wrap"><div class="auth-card">' + left + '<div class="auth-main">' + tabs + '<div id="err"></div>' + form + '</div></div></div>';
-    bindToggles();
+    root.innerHTML = '<div class="auth-wrap">' + Theme.button('auth-theme') + '<div class="auth-card">' + left + '<div class="auth-main">' + tabs + '<div id="err"></div>' + form + '</div></div></div>';
+    bindToggles(); Theme.refresh();
     root.querySelector('#tab-login').onclick = function () { authScreen('login'); };
     root.querySelector('#tab-reg').onclick = function () { authScreen('register'); };
     var first = root.querySelector(login ? '#em' : '#nm'); if (first) first.focus();

@@ -43,10 +43,10 @@
       items.map(function (n) { return n[0] === 'sep' ? '<li class="sep" role="separator"></li>' : '<li><button data-nav="' + n[0] + '"><span class="ico" aria-hidden="true">' + n[1] + '</span>' + n[2] + '</button></li>'; }).join('') +
       '</ul></aside><div class="scrim" id="scrim"></div>' +
       '<div class="main"><header class="topbar"><div style="display:flex;align-items:center;gap:10px"><button class="icon-btn menu-toggle" id="menu-btn" aria-label="Open menu">☰</button><h1 id="page-title"></h1></div>' +
-      '<div class="right"><button class="icon-btn" id="notif-btn" aria-label="Notifications" style="position:relative">🔔<span class="badge-dot"></span></button>' +
+      '<div class="right">' + Theme.button('theme-btn') + '<button class="icon-btn" id="notif-btn" aria-label="Notifications" style="position:relative">🔔<span class="badge-dot"></span></button>' +
       '<button class="profile-btn" id="prof-btn"><span class="avatar">' + esc(initials(user.name)) + '</span><span class="pname">' + esc(user.name) + '</span> ▾</button></div></header>' +
       '<main class="content" id="view"></main></div></div>';
-    shell = root;
+    shell = root; Theme.refresh();
     var sb = root.querySelector('#sidebar'), sc = root.querySelector('#scrim');
     function closeMenu() { sb.classList.remove('open'); sc.classList.remove('open'); }
     root.querySelector('#menu-btn').onclick = function () { sb.classList.add('open'); sc.classList.add('open'); };
@@ -187,7 +187,7 @@
     var p = PMStorage.getPaper(id, user);
     if (!p) { el.innerHTML = '<div class="empty"><h4>Paper not found</h4><p class="muted">It may have been deleted, or you do not have access.</p></div>'; return; }
     el.style.maxWidth = 'none';
-    el.innerHTML = '<div class="toolbar"><button class="btn" data-go="papers">← Back</button><span style="flex:1"></span><button class="btn" id="v-edit">Edit</button><button class="btn" id="v-print">Print</button><button class="btn primary" id="v-pdf">Download PDF</button></div><div style="background:#EDEDED;padding:24px;overflow:auto"><div id="v-note"></div><div class="paper-wrap" id="v-paper"></div></div>';
+    el.innerHTML = '<div class="toolbar"><button class="btn" data-go="papers">← Back</button><span style="flex:1"></span><button class="btn" id="v-edit">Edit</button><button class="btn" id="v-print">Print</button><button class="btn primary" id="v-pdf">Download PDF</button></div><div class="view-stage"><div id="v-note"></div><div class="paper-wrap" id="v-paper"></div></div>';
     var paperEl = el.querySelector('#v-paper'), note = el.querySelector('#v-note');
     function draw() {
       if (!p.autoTranslate || !window.Translator) { paperEl.innerHTML = PaperRenderer.render(p); return; }

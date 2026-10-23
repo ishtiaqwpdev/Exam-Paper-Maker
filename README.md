@@ -75,6 +75,13 @@ Results are cached in the browser, so the same text works offline afterwards. If
 "not translated — Retry" message appears. Machine translation is not perfect, so read the paper before printing.
 For the production/WordPress version, replace `remote()` in `js/translate.js` with your own server-side translation API (e.g. Google Cloud Translation) — the free endpoints have rate limits.
 
+## Light and dark mode
+
+The sun/moon button (top bar, and top-right on the login page) switches between light and dark mode.
+The first visit follows the computer's setting; a click saves the choice in the browser. Only the app UI changes —
+the exam paper preview, print and PDF always stay black on white. Colours are CSS variables at the top of `styles.css`
+(light) and in the `:root[data-theme="dark"]` block (dark).
+
 ## Fonts (temporary)
 
 Change fonts in one place — the CSS variables at the top of `styles.css`:
@@ -95,6 +102,7 @@ styles.css            all styles (colour + font variables at top)
 app.js                bootstrap, login/register, routing
 js/storage.js         LocalStorage users + papers, ownership checks (demo)
 js/translations.js    English/Urdu labels for paper content
+js/theme.js           light / dark mode toggle
 js/math.js            equation engine ($…$ -> HTML/CSS)
 js/translate.js       Urdu ⇄ English auto-translate (detection, maths protection, cache, online service)
 js/paper-builder.js   paper data model, samples, editor UI
