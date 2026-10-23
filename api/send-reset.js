@@ -43,7 +43,9 @@ module.exports = async function handler(req, res) {
       html: emailHtml(code, name)
     });
   } catch (e) {
-    console.error('send-reset failed:', e && e.message);
+    console.error('send-reset failed:', e && e.code, e && e.message);
+    if (e && (e.code === 'EAUTH' || e.responseCode === 535 || e.responseCode === 534))
+      return R.send(res, 502, { error: 'Email could not be sent: Gmail did not accept the login. The site owner must check GMAIL_USER and GMAIL_APP_PASSWORD (use a Google App password, not the normal Gmail password).', code: 'auth_failed' });
     return R.send(res, 502, { error: 'Could not send the email right now. Please try again in a minute.', code: 'send_failed' });
   }
   return R.send(res, 200, { ok: true, token: R.makeToken(email, code), expiresIn: R.CODE_TTL_MS / 1000 });
