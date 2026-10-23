@@ -420,3 +420,15 @@ html { transition: none; }
 .topbar > div:first-child { min-width: 0; flex: 1 1 auto; }
 .topbar .right { flex: none; }
 @media (max-width: 400px) { .profile-btn { gap: 2px; } .topbar { padding: 0 10px; } .topbar .right { gap: 6px; } }
+/* Button labels never break onto two lines */
+.btn, .auth-tabs button, .icon-btn, .nav button, .dropdown button, .mobile-tabs .btn { white-space: nowrap; }
+.auth-tabs button { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+@media (max-width: 480px) {
+  .auth-tabs { gap: 8px; }
+  .auth-tabs button { padding: 11px 8px; font-size: 15px; }
+}
+@media (max-width: 360px) {
+  .auth-tabs button { font-size: 14px; padding: 10px 6px; }
+  .auth-main { padding-left: 16px; padding-right: 16px; }
+}
+.sec-head .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
