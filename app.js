@@ -51,7 +51,8 @@
         pwField('pw', 'Password', 'new-password', '(at least 6 characters)') +
         '<p class="muted auth-note">Your papers are private to your account.</p>' +
         '<button class="btn primary auth-submit">Create Account</button></form>';
-    root.innerHTML = '<div class="auth-wrap">' + Theme.button('auth-theme') + '<div class="auth-card">' + left + '<div class="auth-main">' + tabs + '<div id="err"></div>' + form + '</div></div></div>';
+    var note = PMStorage.isCloud() ? '' : '<p class="muted local-note">Offline demo: accounts and papers are kept only in this browser.' + (location.protocol === 'file:' ? '' : ' (The database is not connected yet.)') + '</p>';
+    root.innerHTML = '<div class="auth-wrap">' + Theme.button('auth-theme') + '<div class="auth-card">' + left + '<div class="auth-main">' + tabs + '<div id="err"></div>' + form + note + '</div></div></div>';
     bindToggles(); Theme.refresh();
     root.querySelector('#tab-login').onclick = function () { authScreen('login'); };
     root.querySelector('#tab-reg').onclick = function () { authScreen('register'); };
@@ -65,8 +66,13 @@
         var em = root.querySelector('#em').value.trim(), pw = root.querySelector('#pw').value;
         if (!em || !pw) return showErr('Please enter both your email and password.');
         if (!emailRe.test(em)) return showErr('Please enter a valid email address.');
-        var r = PMStorage.login(em, pw, root.querySelector('#remember').checked); if (r.error) return showErr(r.error);
-        boot();
+        var btn = root.querySelector('#f button.primary'); btn.disabled = true; btn.textContent = 'Logging in…';
+        PMStorage.login(em, pw, root.querySelector('#remember').checked).then(function (r) {
+          btn.disabled = false; btn.textContent = 'Log In';
+          if (r.error) return showErr(r.error);
+          boot();
+          if (r.imported) Dashboard.toast(r.imported + ' paper(s) from this browser were saved to your account.');
+        });
       };
     } else {
       root.querySelector('#f').onsubmit = function (e) {
@@ -75,8 +81,14 @@
         if (!nm || !em || !pw) return showErr('Please fill in your name, email and password.');
         if (!emailRe.test(em)) return showErr('Please enter a valid email address.');
         if (pw.length < 6) return showErr('Password must be at least 6 characters.');
-        var r = PMStorage.register(nm, em, pw, ac); if (r.error) return showErr(r.error);
-        PMStorage.login(em, pw, true); boot();
+        var btn = root.querySelector('#f button.primary'); btn.disabled = true; btn.textContent = 'Creating account…';
+        PMStorage.register(nm, em, pw, ac).then(function (r) {
+          btn.disabled = false; btn.textContent = 'Create Account';
+          if (r.error) return showErr(r.error);
+          boot();
+          if (r.first) Dashboard.toast('Welcome! You are the first account, so you are the admin of this site.');
+          else if (r.imported) Dashboard.toast(r.imported + ' paper(s) from this browser were saved to your account.');
+        });
       };
     }
   }
@@ -100,7 +112,7 @@
 
   function forgotPassword(prefill) {
     Dashboard.modal('<div id="fp"></div>', function (m, close) {
-      var box = m.querySelector('#fp'), email = '', token = '', timer = null;
+      var box = m.querySelector('#fp'), email = '', token = '', code = '', timer = null;
       function err(msg, good) { var el = box.querySelector('.fp-msg'); if (el) el.innerHTML = msg ? '<div class="form-error' + (good ? ' ok' : '') + '" role="' + (good ? 'status' : 'alert') + '">' + esc(msg) + '</div>' : ''; }
       function busy(btn, on, label) { btn.disabled = on; btn.textContent = on ? label : btn.getAttribute('data-label'); }
       function sendCode(btn, then) {
@@ -121,7 +133,7 @@
           e.preventDefault();
           var v = box.querySelector('#fp-em').value.trim().toLowerCase();
           if (!emailRe.test(v)) return err('Please enter a valid email address.');
-          if (!PMStorage.findByEmail(v)) return err('No account found with this email.');
+          if (!PMStorage.localAccountExists(v)) return err('No account found with this email.');
           email = v; sendCode(box.querySelector('#fp-f1 .primary'), step2);
         };
         box.querySelector('#fp-em').focus();
@@ -148,7 +160,7 @@
           api('/api/verify-reset', { email: email, code: c, token: token }).then(function (r) {
             busy(btn, false);
             if (r.error) return err(r.error);
-            clearInterval(timer); step3();
+            code = c; clearInterval(timer); step3();
           });
         };
         codeIn.focus();
@@ -163,10 +175,14 @@
           var p1 = box.querySelector('#fp-pw').value, p2 = box.querySelector('#fp-pw2').value;
           if (p1.length < 6) return err('New password must be at least 6 characters.');
           if (p1 !== p2) return err('The two passwords do not match.');
-          var r = PMStorage.setPasswordByEmail(email, p1); if (r.error) return err(r.error);
-          close(); authScreen('login');
-          root.querySelector('#em').value = email; root.querySelector('#pw').focus();
-          showErr('Password changed. Log in with your new password.', true);
+          var btn = box.querySelector('#fp-f3 .primary'); btn.disabled = true; btn.textContent = 'Saving…';
+          PMStorage.resetPassword(email, code, token, p1).then(function (r) {
+            btn.disabled = false; btn.textContent = 'Save new password';
+            if (r.error) return err(r.error);
+            close(); authScreen('login');
+            root.querySelector('#em').value = email; root.querySelector('#pw').focus();
+            showErr('Password changed. Log in with your new password.', true);
+          });
         };
         box.querySelector('#fp-pw').focus();
       }
@@ -177,7 +193,6 @@
 
   var current = { view: 'dashboard', id: null };
   function boot() {
-    PMStorage.seed();
     var user = PMStorage.currentUser();
     if (!user) return loginScreen();
     current = { view: 'dashboard', id: null };
@@ -195,5 +210,13 @@
     Dashboard.render(user, current.view, current.id, goto, function () { var v = current; boot(); goto(v.view, v.id); });
   }
 
-  boot();
+  // If the server says the login has expired (e.g. password changed on another device), go back to the login page.
+  window.__onSessionExpired = function () { authScreen('login'); showErr('Your session has ended. Please log in again.'); };
+
+  // Decide cloud (database) or local mode first, then show the app.
+  root.innerHTML = '<div class="auth-wrap"><div class="boot-loading" role="status"><img src="assets/logo-mark.png" width="72" height="72" alt="" class="brand-logo"><div>Loading…</div></div></div>';
+  PMStorage.init().then(function () {
+    boot();
+    if (PMStorage.loadError) Dashboard.toast(PMStorage.loadError);
+  });
 })();

@@ -1,6 +1,8 @@
 /* POST /api/send-reset  { email }  ->  { ok, token, expiresIn }  — emails a 6-digit password-reset code. */
 const nodemailer = require('nodemailer');
 const R = require('./_reset');
+const DB = require('./_db');
+const A = require('./_auth');
 
 // Best-effort abuse protection (per server instance): one email per address per 60 s, at most 5 per address per hour.
 const recent = new Map();
@@ -31,6 +33,15 @@ module.exports = async function handler(req, res) {
   const body = await R.readBody(req);
   const email = R.normEmail(body.email);
   if (!R.EMAIL_RE.test(email) || email.length > 254) return R.send(res, 400, { error: 'Please enter a valid email address.' });
+  // With the database connected, only real accounts get a code, and the code is tied to the current password.
+  let print = '';
+  if (DB.configured()) {
+    try {
+      const rows = await DB.query('SELECT pass_hash FROM pm_users WHERE email = $1', [email]);
+      if (!rows.length) return R.send(res, 404, { error: 'No account found with this email.', code: 'no_account' });
+      print = A.passPrint(rows[0].pass_hash);
+    } catch (e) { console.error('send-reset db error:', e && e.message); return R.send(res, 500, { error: 'The database is not available right now. Please try again.', code: 'db_error' }); }
+  }
   const wait = limited(email); if (wait) return R.send(res, 429, { error: wait, code: 'rate_limited' });
 
   const code = R.sixDigits(), name = process.env.MAIL_FROM_NAME || 'Exam Paper Maker';
@@ -48,5 +59,5 @@ module.exports = async function handler(req, res) {
       return R.send(res, 502, { error: 'Email could not be sent: Gmail did not accept the login. The site owner must check GMAIL_USER and GMAIL_APP_PASSWORD (use a Google App password, not the normal Gmail password).', code: 'auth_failed' });
     return R.send(res, 502, { error: 'Could not send the email right now. Please try again in a minute.', code: 'send_failed' });
   }
-  return R.send(res, 200, { ok: true, token: R.makeToken(email, code), expiresIn: R.CODE_TTL_MS / 1000 });
+  return R.send(res, 200, { ok: true, token: R.makeToken(email, code, print), expiresIn: R.CODE_TTL_MS / 1000 });
 };

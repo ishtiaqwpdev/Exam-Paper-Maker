@@ -1,9 +1,12 @@
 {
   "name": "exam-paper-maker",
   "private": true,
-  "description": "Online Exam Paper Maker — static app + Vercel functions for password-reset emails",
-  "engines": { "node": ">=18" },
+  "description": "Online Exam Paper Maker \u2014 static app + Vercel functions (Postgres database, password-reset emails)",
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
-    "nodemailer": "6.9.16"
+    "nodemailer": "6.9.16",
+    "pg": "8.13.1"
   }
 }

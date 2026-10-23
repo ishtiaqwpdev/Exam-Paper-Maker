@@ -25,6 +25,25 @@ Accounts and papers live in this browser's LocalStorage. Passwords are only ligh
 **The real product must use server-side authentication and authorization** (e.g. WordPress auth, a capability
 check on every read/write, teachers restricted to their own papers). Settings → "Reset demo data" restores the sample data.
 
+## Database (accounts and papers online)
+
+On the live site with a database connected, accounts and papers are stored in **Postgres** (Neon, added from Vercel), so a
+teacher can log in from any computer or phone and find their papers. Passwords are hashed on the server (scrypt); the app
+gets a signed login token (30 days, or this tab only without "Keep me logged in"). Teachers can only read/change their own
+papers — the server checks every request. The **first account** created becomes the **admin** (no demo accounts online).
+Admins can reset passwords, make another account admin, and remove teachers (their papers are removed too).
+
+- Changes are saved in the background; the builder shows "Saving to cloud…", "Saved to cloud ✓" or a warning, and retries
+  automatically when the internet comes back.
+- Papers made earlier in the same browser (before the database) are copied to the account once, on first login/sign-up.
+- Opening `index.html` from a folder (or a site without a database) uses the old in-browser demo mode instead.
+
+**One-time setup:** Vercel → your project → **Storage** → **Create Database** → **Neon (Postgres)** → Free → **Connect** to
+this project (it adds `DATABASE_URL` automatically) → **Redeploy**. Tables are created automatically on first use.
+Optional: add `AUTH_SECRET` (any long random text) to sign login tokens.
+
+API: `api/data.js` (POST `{action, …}` with `Authorization: Bearer <token>`), helpers in `api/_db.js` and `api/_auth.js`.
+
 ## Forgot password (code by email)
 
 Like other apps: **Forgot your password?** → enter the account email → a **6-digit code** is emailed → enter the code →
@@ -119,7 +138,8 @@ Change fonts in one place — the CSS variables at the top of `styles.css`:
 index.html            page shell
 styles.css            all styles (colour + font variables at top)
 app.js                bootstrap, login/register, routing
-js/storage.js         LocalStorage users + papers, ownership checks (demo)
+js/storage.js         accounts + papers: cloud (database API) or local (browser) mode
+api/                  Vercel functions: data.js (database API), send-reset.js / verify-reset.js (reset emails)
 js/translations.js    English/Urdu labels for paper content
 js/theme.js           light / dark mode toggle
 js/math.js            equation engine ($…$ -> HTML/CSS)

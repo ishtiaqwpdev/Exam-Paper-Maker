@@ -331,7 +331,7 @@
     }
     function save(manual) {
       clearTimeout(saveTimer);
-      if (PMStorage.savePaper(paper, user)) { dirty = false; stateEl.textContent = 'Saved ' + new Date().toLocaleTimeString(); if (manual) Dashboard.toast('Paper saved'); if (opts.onSaved) opts.onSaved(paper); }
+      if (PMStorage.savePaper(paper, user)) { dirty = false; if (!PMStorage.isCloud()) stateEl.textContent = 'Saved ' + new Date().toLocaleTimeString(); if (manual) Dashboard.toast(PMStorage.isCloud() ? 'Saving to your account…' : 'Paper saved'); if (opts.onSaved) opts.onSaved(paper); }
       else stateEl.textContent = 'Could not save (no permission)';
     }
     function touch() { dirty = true; stateEl.textContent = 'Saving…'; clearTimeout(saveTimer); saveTimer = setTimeout(function () { save(false); }, 700); preview(); }
@@ -434,6 +434,13 @@
       bt.addEventListener('click', function () { body.setAttribute('data-tab', bt.getAttribute('data-tab')); root.querySelectorAll('.mobile-tabs .btn').forEach(function (x) { x.classList.toggle('primary', x === bt); }); });
     });
 
+    // Cloud mode: show whether the latest changes have reached the database
+    if (PMStorage.isCloud()) PMStorage.onSync(function (st) {
+      if (!stateEl.isConnected) return false;
+      if (dirty) return;
+      stateEl.textContent = st.error ? '⚠ ' + st.error : st.pending ? 'Saving to cloud…' : 'Saved to cloud ✓';
+      stateEl.classList.toggle('warn', !!st.error);
+    });
     renderEditor(); preview();
     return { flush: function () { if (dirty) save(false); } };
   }

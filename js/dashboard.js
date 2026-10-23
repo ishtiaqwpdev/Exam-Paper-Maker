@@ -76,7 +76,7 @@
 
   /* ---------- paper cards ---------- */
   function card(p, user, showOwner) {
-    var owner = showOwner ? (PMStorage.users().find(function (u) { return u.id === p.ownerId; }) || {}).name : '';
+    var owner = showOwner ? PMStorage.ownerName(p.ownerId) : '';
     return '<article class="card" data-id="' + p.id + '"><div class="thumb" data-act="view" title="View paper"><div class="thumb-inner">' + PaperRenderer.renderAuto(p) + '</div></div>' +
       '<div class="card-body"><h4>' + esc(p.settings.title) + '</h4><div class="meta"><b>Class</b><span>' + esc(p.settings.className || '—') + '</span><b>Subject</b><span>' + esc(p.settings.subject || '—') + '</span><b>Language</b><span>' + langName(p.lang) + (p.autoTranslate ? ' <span class="tag">auto-translated</span>' : '') + '</span><b>Updated</b><span>' + fmtDate(p.updatedAt) + '</span>' + (owner ? '<b>Teacher</b><span>' + esc(owner) + '</span>' : '') + '</div></div>' +
       '<div class="card-actions"><button class="btn small" data-act="view">View</button><button class="btn small" data-act="edit">Edit</button><button class="btn small" data-act="pdf">Download PDF</button><button class="btn small" data-act="print">Print</button>' +
@@ -204,54 +204,97 @@
     el.querySelector('#v-pdf').onclick = function () { Export.pdf(p); };
   }
 
+  function errBox(el, sel, msg) { el.querySelector(sel).innerHTML = msg ? '<div class="form-error" role="alert">' + esc(msg) + '</div>' : ''; }
+  function busyBtn(btn, on, label) { if (on) { btn.dataset.label = btn.textContent; btn.textContent = label; } else btn.textContent = btn.dataset.label || btn.textContent; btn.disabled = on; }
+
   function viewProfile(el, user, goto, refreshUser) {
     var n = PMStorage.papersFor(user).length;
-    el.innerHTML = '<div class="panel form-card"><h3 style="margin-bottom:12px">Profile</h3><div class="field"><label>Full name</label><input id="pf-name" value="' + esc(user.name) + '"></div><div class="field"><label>Academy / school</label><input id="pf-acad" value="' + esc(user.academy || '') + '"></div><div class="field"><label>Email</label><input value="' + esc(user.email) + '" disabled></div><p class="muted">Role: ' + user.role + ' · Papers: ' + n + '</p><button class="btn primary" id="pf-save">Save profile</button></div>';
+    el.innerHTML = '<div class="panel form-card"><h3 style="margin-bottom:12px">Profile</h3><div id="pf-err"></div><div class="field"><label for="pf-name">Full name</label><input id="pf-name" value="' + esc(user.name) + '"></div><div class="field"><label for="pf-acad">Academy / school</label><input id="pf-acad" value="' + esc(user.academy || '') + '"></div><div class="field"><label>Email</label><input value="' + esc(user.email) + '" disabled></div><p class="muted">Role: ' + esc(user.role) + ' · Papers: ' + n + '</p><button class="btn primary" id="pf-save">Save profile</button></div>';
     el.querySelector('#pf-save').onclick = function () {
-      var nm = el.querySelector('#pf-name').value.trim(); if (!nm) return toast('Name cannot be empty.');
-      PMStorage.updateUser(user.id, { name: nm, academy: el.querySelector('#pf-acad').value.trim() }); toast('Profile updated'); refreshUser();
+      var btn = this, nm = el.querySelector('#pf-name').value.trim(); if (!nm) return errBox(el, '#pf-err', 'Name cannot be empty.');
+      busyBtn(btn, true, 'Saving…');
+      PMStorage.updateProfile(user, { name: nm, academy: el.querySelector('#pf-acad').value.trim() }).then(function (r) {
+        busyBtn(btn, false);
+        if (r.error) return errBox(el, '#pf-err', r.error);
+        toast('Profile updated'); refreshUser();
+      });
     };
   }
 
   function viewSettings(el, user) {
-    el.innerHTML = '<div class="panel form-card"><h3 style="margin-bottom:12px">Change password</h3><div id="pw-err"></div><div class="field"><label>Current password</label><input type="password" id="pw-old" autocomplete="current-password"></div><div class="field"><label>New password</label><input type="password" id="pw-new" autocomplete="new-password"><span class="hint">At least 6 characters.</span></div><div class="field"><label>Confirm new password</label><input type="password" id="pw-con" autocomplete="new-password"></div><button class="btn primary" id="pw-save">Update password</button></div>' +
-      '<div class="panel form-card"><h3 style="margin-bottom:8px">Demo data</h3><p class="muted">Prototype only. Resets all accounts and papers stored in this browser.</p><button class="btn" id="reset">Reset demo data</button></div>';
+    var cloud = PMStorage.isCloud();
+    el.innerHTML = '<div class="panel form-card"><h3 style="margin-bottom:12px">Change password</h3><div id="pw-err"></div><div class="field"><label for="pw-old">Current password</label><input type="password" id="pw-old" autocomplete="current-password"></div><div class="field"><label for="pw-new">New password</label><input type="password" id="pw-new" autocomplete="new-password"><span class="hint">At least 6 characters.' + (cloud ? ' You will stay logged in here; other devices will be logged out.' : '') + '</span></div><div class="field"><label for="pw-con">Confirm new password</label><input type="password" id="pw-con" autocomplete="new-password"></div><button class="btn primary" id="pw-save">Update password</button></div>' +
+      (cloud
+        ? '<div class="panel form-card"><h3 style="margin-bottom:8px">Your data</h3><p class="muted">Your account and papers are saved in the online database, so you can log in from any computer or phone.</p><p class="muted" id="sync-line"></p></div>'
+        : '<div class="panel form-card"><h3 style="margin-bottom:8px">Demo data</h3><p class="muted">This copy is not connected to the database, so accounts and papers are kept only in this browser. This resets them and restores the demo data.</p><button class="btn" id="reset">Reset demo data</button></div>');
     el.querySelector('#pw-save').onclick = function () {
-      var o = el.querySelector('#pw-old').value, n = el.querySelector('#pw-new').value, c = el.querySelector('#pw-con').value, err = el.querySelector('#pw-err');
-      function bad(m) { err.innerHTML = '<div class="form-error" role="alert">' + m + '</div>'; }
-      if (!o || !n || !c) return bad('Please fill in all fields.');
-      if (!PMStorage.checkPassword(user.id, o)) return bad('Current password is incorrect.');
-      if (n.length < 6) return bad('New password must be at least 6 characters.');
-      if (n !== c) return bad('New passwords do not match.');
-      PMStorage.setPassword(user.id, n); err.innerHTML = ''; toast('Password updated'); ['#pw-old', '#pw-new', '#pw-con'].forEach(function (s) { el.querySelector(s).value = ''; });
+      var btn = this, o = el.querySelector('#pw-old').value, n = el.querySelector('#pw-new').value, c = el.querySelector('#pw-con').value;
+      if (!o || !n || !c) return errBox(el, '#pw-err', 'Please fill in all fields.');
+      if (n.length < 6) return errBox(el, '#pw-err', 'New password must be at least 6 characters.');
+      if (n !== c) return errBox(el, '#pw-err', 'New passwords do not match.');
+      busyBtn(btn, true, 'Updating…');
+      PMStorage.changePassword(user, o, n).then(function (r) {
+        busyBtn(btn, false);
+        if (r.error) return errBox(el, '#pw-err', r.error);
+        errBox(el, '#pw-err', ''); toast('Password updated'); ['#pw-old', '#pw-new', '#pw-con'].forEach(function (s) { el.querySelector(s).value = ''; });
+      });
     };
-    el.querySelector('#reset').onclick = function () { confirmBox('Reset demo data?', 'All local accounts and papers will be removed and the demo data restored.', 'Reset', function () { PMStorage.resetDemo(); location.reload(); }); };
+    if (cloud) {
+      var line = el.querySelector('#sync-line');
+      PMStorage.onSync(function (st) { if (!line.isConnected) return false; line.textContent = st.error ? '⚠ ' + st.error : st.pending ? 'Saving changes…' : 'All changes are saved.'; });
+    } else el.querySelector('#reset').onclick = function () { confirmBox('Reset demo data?', 'All local accounts and papers will be removed and the demo data restored.', 'Reset', function () { PMStorage.resetDemo(); location.reload(); }); };
   }
 
   /* ---------- admin ---------- */
   function viewAdminTeachers(el, user, goto) {
-    var users = PMStorage.users(), papers = PMStorage.allPapers();
-    el.innerHTML = '<div class="grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:18px"><div class="stat"><div class="n">' + users.filter(function (u) { return u.role === 'teacher'; }).length + '</div><div class="l">Teachers</div></div><div class="stat"><div class="n">' + papers.length + '</div><div class="l">All papers</div></div><div class="stat"><div class="n">' + papers.filter(function (p) { return p.lang === 'ur'; }).length + '</div><div class="l">Urdu papers</div></div></div>' +
-      '<div class="panel"><table class="table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Papers</th><th></th></tr></thead><tbody>' + users.map(function (u) {
-        return '<tr><td>' + esc(u.name) + '</td><td>' + esc(u.email) + '</td><td><span class="tag">' + u.role + '</span></td><td>' + papers.filter(function (p) { return p.ownerId === u.id; }).length + '</td><td>' + (u.role === 'teacher' ? '<button class="btn small" data-pw="' + u.id + '">Reset password</button> <button class="btn small" data-del="' + u.id + '">Remove</button>' : '') + '</td></tr>';
-      }).join('') + '</tbody></table></div>';
-    el.querySelectorAll('[data-pw]').forEach(function (b) {
-      b.onclick = function () {
-        var id = b.getAttribute('data-pw'), t = PMStorage.users().find(function (u) { return u.id === id; }) || {};
-        modal('<h3>Reset password</h3><p class="muted">Set a new password for <b>' + esc(t.name) + '</b> (' + esc(t.email) + '). Tell them the new password; they can change it in Account Settings.</p><div id="ap-err"></div>' +
-          '<div class="field"><label for="ap-pw">New password <span class="label-hint">(at least 6 characters)</span></label><input id="ap-pw" type="text" autocomplete="off"></div>' +
-          '<div class="actions"><button class="btn" data-no>Cancel</button><button class="btn primary" data-ok>Set password</button></div>', function (m, close) {
-            m.querySelector('[data-no]').onclick = close;
-            m.querySelector('[data-ok]').onclick = function () {
-              var r = PMStorage.adminSetPassword(user, id, m.querySelector('#ap-pw').value);
-              if (r.error) { m.querySelector('#ap-err').innerHTML = '<div class="form-error" role="alert">' + esc(r.error) + '</div>'; return; }
-              close(); toast('Password updated for ' + (t.name || 'teacher'));
-            };
-            m.querySelector('#ap-pw').focus();
+    el.innerHTML = '<p class="muted">Loading accounts…</p>';
+    PMStorage.listUsers().then(function (r) {
+      if (!el.isConnected) return;
+      if (r.error) { el.innerHTML = '<div class="empty"><h4>Could not load accounts</h4><p class="muted">' + esc(r.error) + '</p><button class="btn" id="re">Try again</button></div>'; el.querySelector('#re').onclick = function () { viewAdminTeachers(el, user, goto); }; return; }
+      var users = r.users, papers = PMStorage.allPapers();
+      el.innerHTML = '<div class="grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:18px"><div class="stat"><div class="n">' + users.filter(function (u) { return u.role === 'teacher'; }).length + '</div><div class="l">Teachers</div></div><div class="stat"><div class="n">' + papers.length + '</div><div class="l">All papers</div></div><div class="stat"><div class="n">' + papers.filter(function (p) { return p.lang === 'ur'; }).length + '</div><div class="l">Urdu papers</div></div></div>' +
+        '<div class="panel"><table class="table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Papers</th><th></th></tr></thead><tbody>' + users.map(function (u) {
+          var self = u.id === user.id;
+          return '<tr><td>' + esc(u.name) + (self ? ' <span class="muted">(you)</span>' : '') + '</td><td>' + esc(u.email) + '</td><td><span class="tag">' + esc(u.role) + '</span></td><td>' + (u.papers || 0) + '</td><td class="row-actions">' +
+            (self ? '' : '<button class="btn small" data-pw="' + esc(u.id) + '">Reset password</button> <button class="btn small" data-role="' + esc(u.id) + '" data-to="' + (u.role === 'admin' ? 'teacher' : 'admin') + '">' + (u.role === 'admin' ? 'Make teacher' : 'Make admin') + '</button>' + (u.role === 'teacher' ? ' <button class="btn small" data-del="' + esc(u.id) + '">Remove</button>' : '')) + '</td></tr>';
+        }).join('') + '</tbody></table></div>';
+      function find(id) { return users.find(function (u) { return u.id === id; }) || {}; }
+      el.querySelectorAll('[data-pw]').forEach(function (b) {
+        b.onclick = function () {
+          var id = b.getAttribute('data-pw'), t = find(id);
+          modal('<h3>Reset password</h3><p class="muted">Set a new password for <b>' + esc(t.name) + '</b> (' + esc(t.email) + '). Tell them the new password; they can change it in Account Settings.</p><div id="ap-err"></div>' +
+            '<div class="field"><label for="ap-pw">New password <span class="label-hint">(at least 6 characters)</span></label><input id="ap-pw" type="text" autocomplete="off"></div>' +
+            '<div class="actions"><button class="btn" data-no>Cancel</button><button class="btn primary" data-ok>Set password</button></div>', function (m, close) {
+              m.querySelector('[data-no]').onclick = close;
+              m.querySelector('[data-ok]').onclick = function () {
+                var btn = this; busyBtn(btn, true, 'Saving…');
+                PMStorage.adminSetPassword(user, id, m.querySelector('#ap-pw').value).then(function (r) {
+                  busyBtn(btn, false);
+                  if (r.error) { m.querySelector('#ap-err').innerHTML = '<div class="form-error" role="alert">' + esc(r.error) + '</div>'; return; }
+                  close(); toast('Password updated for ' + (t.name || 'teacher'));
+                });
+              };
+              m.querySelector('#ap-pw').focus();
+            });
+        };
+      });
+      el.querySelectorAll('[data-role]').forEach(function (b) {
+        b.onclick = function () {
+          var id = b.getAttribute('data-role'), to = b.getAttribute('data-to'), t = find(id);
+          confirmBox(to === 'admin' ? 'Make admin?' : 'Make teacher?', to === 'admin' ? t.name + ' will see all papers and all accounts, and can manage teachers.' : t.name + ' will only see their own papers.', to === 'admin' ? 'Make admin' : 'Make teacher', function () {
+            PMStorage.setRole(user, id, to).then(function (r) { if (r.error) return toast(r.error); toast(t.name + ' is now ' + (to === 'admin' ? 'an admin' : 'a teacher')); viewAdminTeachers(el, user, goto); });
           });
-      };
+        };
+      });
+      el.querySelectorAll('[data-del]').forEach(function (b) {
+        b.onclick = function () {
+          var id = b.getAttribute('data-del');
+          confirmBox('Remove teacher?', 'The account and all of their papers will be deleted.', 'Remove', function () {
+            PMStorage.deleteUser(user, id).then(function (r) { if (r.error) return toast(r.error); toast('Teacher removed'); viewAdminTeachers(el, user, goto); });
+          });
+        };
+      });
     });
-    el.querySelectorAll('[data-del]').forEach(function (b) { b.onclick = function () { var id = b.getAttribute('data-del'); confirmBox('Remove teacher?', 'The account and all of their papers will be deleted.', 'Remove', function () { PMStorage.saveUsers(PMStorage.users().filter(function (u) { return u.id !== id; })); PMStorage.allPapers().filter(function (p) { return p.ownerId === id; }).forEach(function (p) { PMStorage.deletePaper(p.id, user); }); toast('Teacher removed'); viewAdminTeachers(el, user, goto); }); }; });
   }
   function viewAdminSettings(el) {
     el.innerHTML = '<div class="panel form-card"><h3 style="margin-bottom:8px">System settings (preview)</h3><p class="muted">In the full product the admin will configure available section types, languages and fonts here. In this prototype fonts are changed through the CSS variables <code>--font-english</code> and <code>--font-urdu</code> at the top of <code>styles.css</code>.</p><p><b>Section types:</b> ' + PaperBuilder.TYPES.map(function (t) { return '<span class="tag">' + Translations.get('en').types[t] + '</span>'; }).join(' ') + '</p><p><b>Languages:</b> <span class="tag">English (LTR)</span> <span class="tag">اردو (RTL)</span></p></div>';

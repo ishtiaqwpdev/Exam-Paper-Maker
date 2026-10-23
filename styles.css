@@ -437,3 +437,12 @@ html { transition: none; }
 .fp-step { font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--color-muted); margin-bottom: 4px; }
 .otp { font-family: "Courier New", ui-monospace, monospace; font-size: 26px !important; letter-spacing: 10px; text-align: center; font-weight: 700; }
 .link-btn:disabled { opacity: .5; cursor: default; text-decoration: none; }
+
+/* ---------- Database / loading ---------- */
+.boot-loading { display: flex; flex-direction: column; align-items: center; gap: 12px; color: var(--color-muted); font-weight: 600; }
+.boot-loading .brand-logo { width: 72px; height: 72px; animation: pm-pulse 1.4s ease-in-out infinite; }
+@keyframes pm-pulse { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .boot-loading .brand-logo { animation: none; } }
+.local-note { font-size: 13px; text-align: center; margin: 18px 0 0; }
+.save-state.warn { color: var(--color-text); font-weight: 700; }
+.row-actions { white-space: nowrap; }

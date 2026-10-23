@@ -23,9 +23,9 @@ function fromB64u(s) { return Buffer.from(String(s).replace(/-/g, '+').replace(/
 function hmac(data) { return crypto.createHmac('sha256', secret()).update(data).digest(); }
 function codeHash(email, code, nonce) { return b64u(hmac('code|' + email + '|' + String(code).trim() + '|' + nonce)); }
 
-function makeToken(email, code) {
+function makeToken(email, code, passPrint) {
   const nonce = b64u(crypto.randomBytes(12));
-  const payload = b64u(JSON.stringify({ e: email, h: codeHash(email, code, nonce), n: nonce, x: Date.now() + CODE_TTL_MS }));
+  const payload = b64u(JSON.stringify({ e: email, h: codeHash(email, code, nonce), n: nonce, x: Date.now() + CODE_TTL_MS, p: passPrint || '' }));
   return payload + '.' + b64u(hmac('token|' + payload));
 }
 function readToken(token) {
@@ -51,4 +51,24 @@ async function readBody(req) {
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); } catch (e) { return {}; }
 }
 
-module.exports = { CODE_TTL_MS, EMAIL_RE, secret, makeToken, readToken, codeHash, sixDigits, normEmail, send, readBody };
+/* Check an emailed code against its token. At most 5 wrong tries per code (per server instance).
+   Returns { ok, t } or { status, error, code }. */
+const tries = new Map();
+function checkCode(email, code, token) {
+  email = normEmail(email); code = String(code || '').replace(/\D/g, '');
+  const t = readToken(token);
+  if (!t || t.e !== email) return { status: 400, error: 'This code request is not valid. Ask for a new code.', code: 'bad_token' };
+  if (Date.now() > t.x) return { status: 400, error: 'This code has expired. Ask for a new code.', code: 'expired' };
+  if (code.length !== 6) return { status: 400, error: 'Enter the 6-digit code from the email.', code: 'bad_code' };
+  const now = Date.now(); for (const [k, v] of tries) if (v.x < now) tries.delete(k);
+  const rec = tries.get(t.n) || { n: 0, x: t.x };
+  if (rec.n >= 5) return { status: 429, error: 'Too many wrong codes. Ask for a new code.', code: 'locked' };
+  const a = Buffer.from(codeHash(email, code, t.n)), b = Buffer.from(t.h);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    rec.n++; tries.set(t.n, rec); const left = 5 - rec.n;
+    return left > 0 ? { status: 400, error: 'That code is not correct. ' + left + ' attempt(s) left.', code: 'wrong_code' } : { status: 429, error: 'Too many wrong codes. Ask for a new code.', code: 'locked' };
+  }
+  return { ok: true, t };
+}
+
+module.exports = { checkCode, CODE_TTL_MS, EMAIL_RE, secret, makeToken, readToken, codeHash, sixDigits, normEmail, send, readBody };
