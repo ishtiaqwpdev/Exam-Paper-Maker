@@ -24,29 +24,6 @@
       m.querySelector('[data-ok]').focus();
     });
   }
-  /* Shows a recovery code once, with Copy and Download. opts.title / opts.intro / opts.done / opts.onDone */
-  function showRecoveryCode(code, opts) {
-    opts = opts || {};
-    modal('<h3>' + esc(opts.title || 'Save your recovery code') + '</h3>' +
-      '<p class="muted">' + esc(opts.intro || 'If you ever forget your password, click “Forgot your password?” on the login page and enter this code. Keep it somewhere safe — it is shown only now.') + '</p>' +
-      '<div class="rc-code" id="rc-code" tabindex="0" aria-label="Recovery code">' + esc(code) + '</div>' +
-      '<div class="rc-actions"><button class="btn" data-copy>Copy</button><button class="btn" data-dl>Download .txt</button></div>' +
-      '<p class="muted rc-note">Each code works once. After you use it you get a new one.</p>' +
-      '<div class="actions"><button class="btn primary" data-ok>' + esc(opts.done || 'I’ve saved it') + '</button></div>', function (m, close) {
-        m.querySelector('[data-copy]').onclick = function () {
-          var done = function () { toast('Recovery code copied'); };
-          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(done, fallback); else fallback();
-          function fallback() { var r = document.createRange(); r.selectNodeContents(m.querySelector('#rc-code')); var sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); try { document.execCommand('copy'); done(); } catch (e) { toast('Select the code and copy it'); } }
-        };
-        m.querySelector('[data-dl]').onclick = function () {
-          var txt = 'Exam Paper Maker — recovery code\r\n\r\nAccount: ' + (opts.email || '') + '\r\nRecovery code: ' + code + '\r\n\r\nUse it on the login page: Forgot your password?\r\nEach code works once.\r\n';
-          var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], { type: 'text/plain' })); a.download = 'paper-maker-recovery-code.txt';
-          document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
-        };
-        m.querySelector('[data-ok]').onclick = function () { close(); if (opts.onDone) opts.onDone(); };
-        m.querySelector('[data-ok]').focus();
-      });
-  }
   function fmtDate(iso) { try { return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }); } catch (e) { return ''; } }
   function langName(l) { return l === 'ur' ? 'Urdu' : 'English'; }
   function initials(n) { return (n || '?').split(/\s+/).map(function (x) { return x[0]; }).slice(0, 2).join('').toUpperCase(); }
@@ -238,7 +215,6 @@
 
   function viewSettings(el, user) {
     el.innerHTML = '<div class="panel form-card"><h3 style="margin-bottom:12px">Change password</h3><div id="pw-err"></div><div class="field"><label>Current password</label><input type="password" id="pw-old" autocomplete="current-password"></div><div class="field"><label>New password</label><input type="password" id="pw-new" autocomplete="new-password"><span class="hint">At least 6 characters.</span></div><div class="field"><label>Confirm new password</label><input type="password" id="pw-con" autocomplete="new-password"></div><button class="btn primary" id="pw-save">Update password</button></div>' +
-      '<div class="panel form-card"><h3 style="margin-bottom:8px">Password recovery code</h3><p class="muted" id="rc-status">' + (PMStorage.hasRecovery(user.id) ? 'You have a recovery code. Making a new one replaces the old one.' : 'You don’t have a recovery code yet. Make one so you can reset your password if you forget it.') + '</p><div id="rc-err"></div><div class="field"><label for="rc-pw">Current password</label><input type="password" id="rc-pw" autocomplete="current-password"></div><button class="btn" id="rc-new">Create new recovery code</button></div>' +
       '<div class="panel form-card"><h3 style="margin-bottom:8px">Demo data</h3><p class="muted">Prototype only. Resets all accounts and papers stored in this browser.</p><button class="btn" id="reset">Reset demo data</button></div>';
     el.querySelector('#pw-save').onclick = function () {
       var o = el.querySelector('#pw-old').value, n = el.querySelector('#pw-new').value, c = el.querySelector('#pw-con').value, err = el.querySelector('#pw-err');
@@ -248,14 +224,6 @@
       if (n.length < 6) return bad('New password must be at least 6 characters.');
       if (n !== c) return bad('New passwords do not match.');
       PMStorage.setPassword(user.id, n); err.innerHTML = ''; toast('Password updated'); ['#pw-old', '#pw-new', '#pw-con'].forEach(function (s) { el.querySelector(s).value = ''; });
-    };
-    el.querySelector('#rc-new').onclick = function () {
-      var pw = el.querySelector('#rc-pw').value, err = el.querySelector('#rc-err');
-      if (!pw) { err.innerHTML = '<div class="form-error" role="alert">Enter your current password first.</div>'; return; }
-      if (!PMStorage.checkPassword(user.id, pw)) { err.innerHTML = '<div class="form-error" role="alert">Current password is incorrect.</div>'; return; }
-      err.innerHTML = ''; el.querySelector('#rc-pw').value = '';
-      showRecoveryCode(PMStorage.newRecoveryCode(user.id), { email: user.email, title: 'Your new recovery code', intro: 'Your old code no longer works. Keep this one somewhere safe — it is shown only now.' });
-      el.querySelector('#rc-status').textContent = 'You have a recovery code. Making a new one replaces the old one.';
     };
     el.querySelector('#reset').onclick = function () { confirmBox('Reset demo data?', 'All local accounts and papers will be removed and the demo data restored.', 'Reset', function () { PMStorage.resetDemo(); location.reload(); }); };
   }
@@ -317,5 +285,5 @@
     }
   }
 
-  window.Dashboard = { showRecoveryCode: showRecoveryCode, toast: toast, mountShell: mountShell, render: render, modal: modal, confirm: confirmBox };
+  window.Dashboard = { toast: toast, mountShell: mountShell, render: render, modal: modal, confirm: confirmBox };
 })();

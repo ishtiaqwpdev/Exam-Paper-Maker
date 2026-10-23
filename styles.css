@@ -433,9 +433,7 @@ html { transition: none; }
 }
 .sec-head .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 
-/* ---------- Password recovery ---------- */
-.rc-code { font-family: "Courier New", ui-monospace, monospace; font-size: 24px; font-weight: 700; letter-spacing: 2px; text-align: center; padding: 14px 10px; border: 2px dashed var(--ink); border-radius: var(--radius); margin: 12px 0; user-select: all; background: var(--color-soft); word-break: break-all; }
-.rc-actions { display: flex; gap: 8px; } .rc-actions .btn { flex: 1; }
-.rc-note { font-size: 13px; margin: 10px 0 0; }
+/* ---------- Forgot password ---------- */
 .fp-step { font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--color-muted); margin-bottom: 4px; }
-#rc-in { font-family: "Courier New", ui-monospace, monospace; letter-spacing: 1.5px; text-transform: uppercase; }
+.otp { font-family: "Courier New", ui-monospace, monospace; font-size: 26px !important; letter-spacing: 10px; text-align: center; font-weight: 700; }
+.link-btn:disabled { opacity: .5; cursor: default; text-decoration: none; }

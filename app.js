@@ -76,52 +76,99 @@
         if (!emailRe.test(em)) return showErr('Please enter a valid email address.');
         if (pw.length < 6) return showErr('Password must be at least 6 characters.');
         var r = PMStorage.register(nm, em, pw, ac); if (r.error) return showErr(r.error);
-        var code = PMStorage.newRecoveryCode(r.user.id);
         PMStorage.login(em, pw, true); boot();
-        Dashboard.showRecoveryCode(code, { email: em, title: 'Account created — save your recovery code' });
       };
     }
   }
-  /* Forgot password: 1) email  2) recovery code + new password  3) new recovery code shown */
+  /* Forgot password, like other apps: 1) email  2) 6-digit code sent to that email  3) new password.
+     The code is emailed by the Vercel functions in /api (see api/_reset.js for the one-time setup). */
+  function api(path, data) {
+    return fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      .then(function (r) {
+        return r.text().then(function (t) {
+          var j = null; try { j = JSON.parse(t); } catch (e) {}
+          if (!j) return { error: location.protocol === 'file:' || r.status === 404
+            ? 'Reset emails work on the live website (exam-paper-maker.vercel.app), not when index.html is opened from a folder.'
+            : 'The reset service did not answer. Please try again.', code: 'no_api' };
+          return r.ok ? j : (j.error ? j : { error: 'Something went wrong. Please try again.' });
+        });
+      }, function () {
+        return { error: location.protocol === 'file:' ? 'Reset emails work on the live website (exam-paper-maker.vercel.app), not when index.html is opened from a folder.' : 'No internet connection. Check it and try again.', code: 'offline' };
+      });
+  }
+  function maskEmail(e) { var p = e.split('@'); return p[0].slice(0, 2) + '•••@' + p[1]; }
+
   function forgotPassword(prefill) {
     Dashboard.modal('<div id="fp"></div>', function (m, close) {
-      var box = m.querySelector('#fp'), email = '';
-      function err(msg) { box.querySelector('.fp-msg').innerHTML = msg ? '<div class="form-error" role="alert">' + esc(msg) + '</div>' : ''; }
+      var box = m.querySelector('#fp'), email = '', token = '', timer = null;
+      function err(msg, good) { var el = box.querySelector('.fp-msg'); if (el) el.innerHTML = msg ? '<div class="form-error' + (good ? ' ok' : '') + '" role="' + (good ? 'status' : 'alert') + '">' + esc(msg) + '</div>' : ''; }
+      function busy(btn, on, label) { btn.disabled = on; btn.textContent = on ? label : btn.getAttribute('data-label'); }
+      function sendCode(btn, then) {
+        busy(btn, true, 'Sending…');
+        api('/api/send-reset', { email: email }).then(function (r) {
+          busy(btn, false);
+          if (r.error) return err(r.error);
+          token = r.token; then();
+        });
+      }
       function step1() {
-        box.innerHTML = '<div class="fp-step">Step 1 of 2</div><h3>Reset your password</h3><p class="muted">Enter the email of your account.</p><div class="fp-msg"></div>' +
+        clearInterval(timer);
+        box.innerHTML = '<div class="fp-step">Step 1 of 3</div><h3>Forgot your password?</h3><p class="muted">Enter your account email. We will email you a 6-digit code.</p><div class="fp-msg"></div>' +
           '<form id="fp-f1" novalidate><div class="field"><label for="fp-em">Email</label><input id="fp-em" type="email" autocomplete="email" placeholder="you@example.com" value="' + esc(email || prefill || '') + '"></div>' +
-          '<div class="actions"><button type="button" class="btn" data-no>Cancel</button><button class="btn primary">Continue</button></div></form>';
+          '<div class="actions"><button type="button" class="btn" data-no>Cancel</button><button class="btn primary" data-label="Send code">Send code</button></div></form>';
         box.querySelector('[data-no]').onclick = close;
         box.querySelector('#fp-f1').onsubmit = function (e) {
           e.preventDefault();
-          var v = box.querySelector('#fp-em').value.trim();
+          var v = box.querySelector('#fp-em').value.trim().toLowerCase();
           if (!emailRe.test(v)) return err('Please enter a valid email address.');
-          var st = PMStorage.recoveryStatus(v); if (st.error) return err(st.error);
-          email = v; step2();
+          if (!PMStorage.findByEmail(v)) return err('No account found with this email.');
+          email = v; sendCode(box.querySelector('#fp-f1 .primary'), step2);
         };
         box.querySelector('#fp-em').focus();
       }
       function step2() {
-        box.innerHTML = '<div class="fp-step">Step 2 of 2</div><h3>Enter your recovery code</h3><p class="muted">For <b>' + esc(email) + '</b>. You got this code when the account was created (or from Account Settings).</p><div class="fp-msg"></div>' +
-          '<form id="fp-f2" novalidate><div class="field"><label for="rc-in">Recovery code</label><input id="rc-in" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX"></div>' +
-          pwField('fp-pw', 'New password', 'new-password', '(at least 6 characters)') + pwField('fp-pw2', 'Confirm new password', 'new-password') +
-          '<div class="actions"><button type="button" class="btn" data-back>Back</button><button class="btn primary">Reset password</button></div></form>';
-        bindToggles(box);
+        box.innerHTML = '<div class="fp-step">Step 2 of 3</div><h3>Check your email</h3><p class="muted">We sent a 6-digit code to <b>' + esc(maskEmail(email)) + '</b>. It expires in 15 minutes. Check the spam folder if you don’t see it.</p><div class="fp-msg"></div>' +
+          '<form id="fp-f2" novalidate><div class="field"><label for="fp-code">6-digit code</label><input id="fp-code" class="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••"></div>' +
+          '<div class="actions"><button type="button" class="btn" data-back>Change email</button><button class="btn primary" data-label="Verify code">Verify code</button></div></form>' +
+          '<div class="auth-switch"><button type="button" class="link-btn" id="fp-resend" data-label="Resend code">Resend code</button> <span class="muted" id="fp-wait"></span></div>';
+        var resend = box.querySelector('#fp-resend'), waitEl = box.querySelector('#fp-wait');
+        function cooldown() {
+          var left = 60; resend.disabled = true; waitEl.textContent = '(in ' + left + 's)';
+          clearInterval(timer); timer = setInterval(function () { left--; if (left <= 0) { clearInterval(timer); resend.disabled = false; waitEl.textContent = ''; } else waitEl.textContent = '(in ' + left + 's)'; }, 1000);
+        }
+        cooldown();
+        resend.onclick = function () { sendCode(resend, function () { err('A new code has been sent.', true); cooldown(); box.querySelector('#fp-code').value = ''; }); };
         box.querySelector('[data-back]').onclick = step1;
+        var codeIn = box.querySelector('#fp-code');
+        codeIn.addEventListener('input', function () { codeIn.value = codeIn.value.replace(/\D/g, '').slice(0, 6); });
         box.querySelector('#fp-f2').onsubmit = function (e) {
           e.preventDefault();
-          var code = box.querySelector('#rc-in').value, p1 = box.querySelector('#fp-pw').value, p2 = box.querySelector('#fp-pw2').value;
-          if (!code.trim() || !p1 || !p2) return err('Please fill in the code and the new password twice.');
+          var c = codeIn.value; if (c.length !== 6) return err('Enter the 6-digit code from the email.');
+          var btn = box.querySelector('#fp-f2 .primary'); busy(btn, true, 'Checking…');
+          api('/api/verify-reset', { email: email, code: c, token: token }).then(function (r) {
+            busy(btn, false);
+            if (r.error) return err(r.error);
+            clearInterval(timer); step3();
+          });
+        };
+        codeIn.focus();
+      }
+      function step3() {
+        box.innerHTML = '<div class="fp-step">Step 3 of 3</div><h3>Set a new password</h3><p class="muted">For <b>' + esc(email) + '</b>.</p><div class="fp-msg"></div>' +
+          '<form id="fp-f3" novalidate>' + pwField('fp-pw', 'New password', 'new-password', '(at least 6 characters)') + pwField('fp-pw2', 'Confirm new password', 'new-password') +
+          '<div class="actions"><button class="btn primary">Save new password</button></div></form>';
+        bindToggles(box);
+        box.querySelector('#fp-f3').onsubmit = function (e) {
+          e.preventDefault();
+          var p1 = box.querySelector('#fp-pw').value, p2 = box.querySelector('#fp-pw2').value;
           if (p1.length < 6) return err('New password must be at least 6 characters.');
           if (p1 !== p2) return err('The two passwords do not match.');
-          var r = PMStorage.resetWithCode(email, code, p1); if (r.error) return err(r.error);
-          close();
-          authScreen('login');
+          var r = PMStorage.setPasswordByEmail(email, p1); if (r.error) return err(r.error);
+          close(); authScreen('login');
           root.querySelector('#em').value = email; root.querySelector('#pw').focus();
           showErr('Password changed. Log in with your new password.', true);
-          Dashboard.showRecoveryCode(r.newCode, { email: email, title: 'Password changed — your new recovery code', intro: 'Your old recovery code has been used up. Save this new one — it is shown only now.' });
         };
-        box.querySelector('#rc-in').focus();
+        box.querySelector('#fp-pw').focus();
       }
       step1();
     });

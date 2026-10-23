@@ -25,14 +25,24 @@ Accounts and papers live in this browser's LocalStorage. Passwords are only ligh
 **The real product must use server-side authentication and authorization** (e.g. WordPress auth, a capability
 check on every read/write, teachers restricted to their own papers). Settings → "Reset demo data" restores the sample data.
 
-## Forgot password (works without a mail server)
+## Forgot password (code by email)
 
-- When a teacher creates an account they get a one-time **recovery code** (e.g. `K7Q4-9XMP-2RTA`) with Copy and Download buttons.
-- **Forgot your password?** on the login page: enter the email → enter the recovery code and a new password → done. The used code is
-  replaced by a new one, which is shown once. 5 wrong codes lock recovery for that account for 5 minutes.
-- **Account Settings → Password recovery code** makes a new code (needs the current password); the old one stops working.
-- Accounts without a code (e.g. the demo teacher): an admin sets a new password in **All Teachers → Reset password**.
-- Only a hash of the code is stored. In the WordPress version this can become a normal "email me a reset link" flow.
+Like other apps: **Forgot your password?** → enter the account email → a **6-digit code** is emailed → enter the code →
+set a new password. Codes expire after 15 minutes, 5 wrong tries cancel a code, "Resend code" is available after 60 seconds.
+Admins can also set a new password for a teacher in **All Teachers → Reset password**.
+
+The emails are sent by two small Vercel functions (`api/send-reset.js`, `api/verify-reset.js`) through Gmail.
+**One-time setup** in Vercel → your project → Settings → Environment Variables (then Redeploy):
+
+| Name | Value |
+|------|-------|
+| `GMAIL_USER` | the Gmail address that sends the emails |
+| `GMAIL_APP_PASSWORD` | a 16-character Google App password (Google Account → Security → 2-Step Verification → App passwords) |
+| `RESET_SECRET` | optional — any long random text |
+| `MAIL_FROM_NAME` | optional — sender name (default "Exam Paper Maker") |
+
+Reset emails only work on the live (Vercel) site, not when `index.html` is opened from a folder.
+To test locally with the functions, run `npx vercel dev`.
 
 ## What works
 
