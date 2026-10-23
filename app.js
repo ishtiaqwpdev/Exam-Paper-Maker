@@ -33,7 +33,7 @@
 
   function authScreen(tab) {
     var login = tab !== 'register';
-    var left = '<div class="auth-side"><div class="brand auth-brand"><span class="brand-mark">P</span><span>Exam Paper Maker<small>BUILD · PRINT · SHARE</small></span></div>' +
+    var left = '<div class="auth-side"><img class="auth-logo" src="assets/logo.png" width="640" height="567" alt="Exam Paper Maker logo — Learn, Grow, Succeed"><div class="auth-name">Exam Paper Maker</div>' +
       '<h1>' + (login ? 'Welcome back!' : 'Join Paper Maker') + '</h1>' +
       '<p class="sub">' + (login ? 'Log in to create, edit and print your exam papers.' : 'Create a teacher account to start building exam papers in English, Urdu or both.') + '</p>' + ART + '</div>';
     var tabs = '<div class="auth-tabs" role="tablist"><button type="button" role="tab" id="tab-login" aria-selected="' + login + '" class="' + (login ? 'on' : '') + '">Log In</button>' +
