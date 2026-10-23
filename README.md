@@ -25,6 +25,15 @@ Accounts and papers live in this browser's LocalStorage. Passwords are only ligh
 **The real product must use server-side authentication and authorization** (e.g. WordPress auth, a capability
 check on every read/write, teachers restricted to their own papers). Settings → "Reset demo data" restores the sample data.
 
+## Forgot password (works without a mail server)
+
+- When a teacher creates an account they get a one-time **recovery code** (e.g. `K7Q4-9XMP-2RTA`) with Copy and Download buttons.
+- **Forgot your password?** on the login page: enter the email → enter the recovery code and a new password → done. The used code is
+  replaced by a new one, which is shown once. 5 wrong codes lock recovery for that account for 5 minutes.
+- **Account Settings → Password recovery code** makes a new code (needs the current password); the old one stops working.
+- Accounts without a code (e.g. the demo teacher): an admin sets a new password in **All Teachers → Reset password**.
+- Only a hash of the code is stored. In the WordPress version this can become a normal "email me a reset link" flow.
+
 ## What works
 
 - Login, register, logout, show/hide password, validation messages.

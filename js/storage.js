@@ -14,6 +14,20 @@
   // Demo-only obfuscation. NOT real hashing. Real product must use server-side hashing.
   function fakeHash(s) { var h = 5381; for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return 'demo$' + h; }
 
+  /* ---- Password recovery (works without a mail server) ----
+     Each account gets a one-time recovery code (e.g. K7Q4-9XMP-2RTA) when it is created. Only a hash is stored.
+     "Forgot your password?" = email + recovery code + new password. A used code is replaced by a new one.
+     5 wrong codes lock recovery for that account for 5 minutes. Admins can also set a new password for a teacher. */
+  var CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', MAX_TRIES = 5, LOCK_MS = 5 * 60 * 1000;
+  function makeCode() {
+    var n = new Uint32Array(12), out = '';
+    if (window.crypto && crypto.getRandomValues) crypto.getRandomValues(n); else for (var j = 0; j < 12; j++) n[j] = Math.floor(Math.random() * 4294967296);
+    for (var i = 0; i < 12; i++) out += CODE_CHARS[n[i] % CODE_CHARS.length];
+    return out.slice(0, 4) + '-' + out.slice(4, 8) + '-' + out.slice(8);
+  }
+  function normCode(c) { return String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+  function codeHash(c) { return fakeHash('rc:' + normCode(c)); }
+
   var Storage = {
     uid: uid,
     seed: function () {
@@ -100,6 +114,39 @@
     deletePaper: function (id, user) {
       var p = this.getPaper(id, user); if (!p) return false;
       write(K.papers, this.allPapers().filter(function (x) { return x.id !== id; })); return true;
+    },
+    findByEmail: function (email) { email = String(email || '').toLowerCase(); return this.users().find(function (x) { return x.email.toLowerCase() === email; }) || null; },
+    hasRecovery: function (id) { var u = this.users().find(function (x) { return x.id === id; }); return !!(u && u.recovery); },
+    /* creates (or replaces) the account's recovery code and returns it in plain text — show it once */
+    newRecoveryCode: function (id) { var code = makeCode(); this.updateUser(id, { recovery: codeHash(code), rcTries: 0, rcLock: 0 }); return code; },
+    /* step 1 of "Forgot password": is there an account, and can it be recovered? */
+    recoveryStatus: function (email) {
+      var u = this.findByEmail(email);
+      if (!u) return { error: 'No account found with this email.' };
+      if (!u.recovery) return { error: 'This account has no recovery code. Ask your school admin to set a new password for you (All Teachers → Reset password).', noCode: true };
+      if (u.rcLock && u.rcLock > Date.now()) return { error: 'Too many wrong codes. Try again in ' + Math.ceil((u.rcLock - Date.now()) / 60000) + ' minute(s).', locked: true };
+      return { ok: true };
+    },
+    /* step 2: check the code, set the new password, issue a fresh code (the old one is used up) */
+    resetWithCode: function (email, code, newPw) {
+      var st = this.recoveryStatus(email); if (st.error) return st;
+      if (!newPw || newPw.length < 6) return { error: 'New password must be at least 6 characters.' };
+      var u = this.findByEmail(email);
+      if (codeHash(code) !== u.recovery) {
+        var tries = (u.rcTries || 0) + 1;
+        if (tries >= MAX_TRIES) { this.updateUser(u.id, { rcTries: 0, rcLock: Date.now() + LOCK_MS }); return { error: 'Too many wrong codes. Recovery is locked for 5 minutes.', locked: true }; }
+        this.updateUser(u.id, { rcTries: tries });
+        return { error: 'That recovery code is not correct. ' + (MAX_TRIES - tries) + ' attempt(s) left.' };
+      }
+      this.updateUser(u.id, { pass: fakeHash(newPw), rcTries: 0, rcLock: 0 });
+      return { ok: true, newCode: this.newRecoveryCode(u.id) };
+    },
+    /* admin sets a new password for a teacher (and clears any recovery lock) */
+    adminSetPassword: function (admin, id, newPw) {
+      if (!admin || admin.role !== 'admin') return { error: 'Only an admin can do this.' };
+      if (!newPw || newPw.length < 6) return { error: 'Password must be at least 6 characters.' };
+      if (!this.users().some(function (x) { return x.id === id; })) return { error: 'Account not found.' };
+      this.updateUser(id, { pass: fakeHash(newPw), rcTries: 0, rcLock: 0 }); return { ok: true };
     },
     resetDemo: function () { try { Object.keys(K).forEach(function (k) { localStorage.removeItem(K[k]); }); localStorage.removeItem('pm_tr_cache_v1'); } catch (e) {} }
   };

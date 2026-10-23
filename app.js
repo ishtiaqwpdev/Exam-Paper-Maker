@@ -24,8 +24,8 @@
     return '<div class="field"><label for="' + id + '">' + label + (hint ? ' <span class="label-hint">' + hint + '</span>' : '') + '</label>' +
       '<div class="pw-row"><input id="' + id + '" type="password" autocomplete="' + auto + '"><button type="button" class="pw-toggle" data-for="' + id + '" aria-label="Show or hide password">Show</button></div></div>';
   }
-  function bindToggles() {
-    root.querySelectorAll('.pw-toggle').forEach(function (b) {
+  function bindToggles(scope) {
+    (scope || root).querySelectorAll('.pw-toggle').forEach(function (b) {
       b.onclick = function () { var i = document.getElementById(b.getAttribute('data-for')); var show = i.type === 'password'; i.type = show ? 'text' : 'password'; b.textContent = show ? 'Hide' : 'Show'; };
     });
   }
@@ -59,19 +59,7 @@
 
     if (login) {
       root.querySelector('#to-reg').onclick = function () { authScreen('register'); };
-      root.querySelector('#forgot').onclick = function () {
-        var em = root.querySelector('#em').value.trim();
-        Dashboard.modal('<h3>Reset your password</h3><p class="muted">Enter your account email.</p><div class="field"><label for="fp-em">Email</label><input id="fp-em" type="email" value="' + esc(em) + '" placeholder="you@example.com"></div><div id="fp-msg"></div><div class="actions"><button class="btn" data-no>Close</button><button class="btn primary" data-ok>Send reset link</button></div>', function (m, close) {
-          m.querySelector('[data-no]').onclick = close;
-          m.querySelector('[data-ok]').onclick = function () {
-            var v = m.querySelector('#fp-em').value.trim(), msg = m.querySelector('#fp-msg');
-            if (!emailRe.test(v)) { msg.innerHTML = '<div class="form-error" role="alert">Please enter a valid email address.</div>'; return; }
-            // Prototype: there is no mail server. The live (WordPress) version sends a real reset email.
-            msg.innerHTML = '<div class="form-error ok" role="status">Demo version: emails can’t be sent yet. In the live version a reset link is emailed to ' + esc(v) + '. For now, ask your admin or use Account Settings → Reset demo data.</div>';
-          };
-          m.querySelector('#fp-em').focus();
-        });
-      };
+      root.querySelector('#forgot').onclick = function () { forgotPassword(root.querySelector('#em').value.trim()); };
       root.querySelector('#f').onsubmit = function (e) {
         e.preventDefault();
         var em = root.querySelector('#em').value.trim(), pw = root.querySelector('#pw').value;
@@ -88,9 +76,55 @@
         if (!emailRe.test(em)) return showErr('Please enter a valid email address.');
         if (pw.length < 6) return showErr('Password must be at least 6 characters.');
         var r = PMStorage.register(nm, em, pw, ac); if (r.error) return showErr(r.error);
+        var code = PMStorage.newRecoveryCode(r.user.id);
         PMStorage.login(em, pw, true); boot();
+        Dashboard.showRecoveryCode(code, { email: em, title: 'Account created — save your recovery code' });
       };
     }
+  }
+  /* Forgot password: 1) email  2) recovery code + new password  3) new recovery code shown */
+  function forgotPassword(prefill) {
+    Dashboard.modal('<div id="fp"></div>', function (m, close) {
+      var box = m.querySelector('#fp'), email = '';
+      function err(msg) { box.querySelector('.fp-msg').innerHTML = msg ? '<div class="form-error" role="alert">' + esc(msg) + '</div>' : ''; }
+      function step1() {
+        box.innerHTML = '<div class="fp-step">Step 1 of 2</div><h3>Reset your password</h3><p class="muted">Enter the email of your account.</p><div class="fp-msg"></div>' +
+          '<form id="fp-f1" novalidate><div class="field"><label for="fp-em">Email</label><input id="fp-em" type="email" autocomplete="email" placeholder="you@example.com" value="' + esc(email || prefill || '') + '"></div>' +
+          '<div class="actions"><button type="button" class="btn" data-no>Cancel</button><button class="btn primary">Continue</button></div></form>';
+        box.querySelector('[data-no]').onclick = close;
+        box.querySelector('#fp-f1').onsubmit = function (e) {
+          e.preventDefault();
+          var v = box.querySelector('#fp-em').value.trim();
+          if (!emailRe.test(v)) return err('Please enter a valid email address.');
+          var st = PMStorage.recoveryStatus(v); if (st.error) return err(st.error);
+          email = v; step2();
+        };
+        box.querySelector('#fp-em').focus();
+      }
+      function step2() {
+        box.innerHTML = '<div class="fp-step">Step 2 of 2</div><h3>Enter your recovery code</h3><p class="muted">For <b>' + esc(email) + '</b>. You got this code when the account was created (or from Account Settings).</p><div class="fp-msg"></div>' +
+          '<form id="fp-f2" novalidate><div class="field"><label for="rc-in">Recovery code</label><input id="rc-in" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX"></div>' +
+          pwField('fp-pw', 'New password', 'new-password', '(at least 6 characters)') + pwField('fp-pw2', 'Confirm new password', 'new-password') +
+          '<div class="actions"><button type="button" class="btn" data-back>Back</button><button class="btn primary">Reset password</button></div></form>';
+        bindToggles(box);
+        box.querySelector('[data-back]').onclick = step1;
+        box.querySelector('#fp-f2').onsubmit = function (e) {
+          e.preventDefault();
+          var code = box.querySelector('#rc-in').value, p1 = box.querySelector('#fp-pw').value, p2 = box.querySelector('#fp-pw2').value;
+          if (!code.trim() || !p1 || !p2) return err('Please fill in the code and the new password twice.');
+          if (p1.length < 6) return err('New password must be at least 6 characters.');
+          if (p1 !== p2) return err('The two passwords do not match.');
+          var r = PMStorage.resetWithCode(email, code, p1); if (r.error) return err(r.error);
+          close();
+          authScreen('login');
+          root.querySelector('#em').value = email; root.querySelector('#pw').focus();
+          showErr('Password changed. Log in with your new password.', true);
+          Dashboard.showRecoveryCode(r.newCode, { email: email, title: 'Password changed — your new recovery code', intro: 'Your old recovery code has been used up. Save this new one — it is shown only now.' });
+        };
+        box.querySelector('#rc-in').focus();
+      }
+      step1();
+    });
   }
   function loginScreen() { authScreen('login'); }
 
