@@ -77,8 +77,8 @@
   /* ---------- paper cards ---------- */
   function card(p, user, showOwner) {
     var owner = showOwner ? (PMStorage.users().find(function (u) { return u.id === p.ownerId; }) || {}).name : '';
-    return '<article class="card" data-id="' + p.id + '"><div class="thumb" data-act="view" title="View paper"><div class="thumb-inner">' + PaperRenderer.render(p) + '</div></div>' +
-      '<div class="card-body"><h4>' + esc(p.settings.title) + '</h4><div class="meta"><b>Class</b><span>' + esc(p.settings.className || '—') + '</span><b>Subject</b><span>' + esc(p.settings.subject || '—') + '</span><b>Language</b><span>' + langName(p.lang) + '</span><b>Updated</b><span>' + fmtDate(p.updatedAt) + '</span>' + (owner ? '<b>Teacher</b><span>' + esc(owner) + '</span>' : '') + '</div></div>' +
+    return '<article class="card" data-id="' + p.id + '"><div class="thumb" data-act="view" title="View paper"><div class="thumb-inner">' + PaperRenderer.renderAuto(p) + '</div></div>' +
+      '<div class="card-body"><h4>' + esc(p.settings.title) + '</h4><div class="meta"><b>Class</b><span>' + esc(p.settings.className || '—') + '</span><b>Subject</b><span>' + esc(p.settings.subject || '—') + '</span><b>Language</b><span>' + langName(p.lang) + (p.autoTranslate ? ' <span class="tag">auto-translated</span>' : '') + '</span><b>Updated</b><span>' + fmtDate(p.updatedAt) + '</span>' + (owner ? '<b>Teacher</b><span>' + esc(owner) + '</span>' : '') + '</div></div>' +
       '<div class="card-actions"><button class="btn small" data-act="view">View</button><button class="btn small" data-act="edit">Edit</button><button class="btn small" data-act="pdf">Download PDF</button><button class="btn small" data-act="print">Print</button>' +
       '<button class="icon-btn" data-act="more" aria-label="More options" aria-haspopup="true">⋯</button></div></article>';
   }
@@ -187,7 +187,17 @@
     var p = PMStorage.getPaper(id, user);
     if (!p) { el.innerHTML = '<div class="empty"><h4>Paper not found</h4><p class="muted">It may have been deleted, or you do not have access.</p></div>'; return; }
     el.style.maxWidth = 'none';
-    el.innerHTML = '<div class="toolbar"><button class="btn" data-go="papers">← Back</button><span style="flex:1"></span><button class="btn" id="v-edit">Edit</button><button class="btn" id="v-print">Print</button><button class="btn primary" id="v-pdf">Download PDF</button></div><div style="background:#EDEDED;padding:24px;overflow:auto"><div class="paper-wrap">' + PaperRenderer.render(p) + '</div></div>';
+    el.innerHTML = '<div class="toolbar"><button class="btn" data-go="papers">← Back</button><span style="flex:1"></span><button class="btn" id="v-edit">Edit</button><button class="btn" id="v-print">Print</button><button class="btn primary" id="v-pdf">Download PDF</button></div><div style="background:#EDEDED;padding:24px;overflow:auto"><div id="v-note"></div><div class="paper-wrap" id="v-paper"></div></div>';
+    var paperEl = el.querySelector('#v-paper'), note = el.querySelector('#v-note');
+    function draw() {
+      if (!p.autoTranslate || !window.Translator) { paperEl.innerHTML = PaperRenderer.render(p); return; }
+      var v = Translator.view(p); paperEl.innerHTML = PaperRenderer.render(v.paper);
+      var todo = v.missing.filter(Translator.canFetch);
+      note.innerHTML = '<div class="tr-banner">Auto-translated preview: ' + Translator.langName(v.source) + ' → ' + Translator.langName(v.target) +
+        (todo.length ? ' · translating…' : v.missing.length ? ' · ' + v.missing.length + ' item(s) not translated, shown in the original. ' + esc(Translator.status().error || '') : '') + '</div>';
+      if (todo.length) Translator.fetch(todo).then(function () { if (paperEl.isConnected) draw(); });
+    }
+    draw();
     el.querySelector('[data-go]').onclick = function () { goto('papers'); };
     el.querySelector('#v-edit').onclick = function () { goto('builder', id); };
     el.querySelector('#v-print').onclick = function () { Export.print(p); };

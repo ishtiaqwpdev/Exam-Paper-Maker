@@ -17,6 +17,15 @@
     m = (m || '').trim(); if (!m) return '';
     return /^\d+(\.\d+)?$/.test(m) ? '(' + esc(m) + ' ' + t.marks_word + ')' : esc(m);
   }
+  /* Bidi fix: inside an Urdu (RTL) section, a line with no Urdu letters at all (pure maths, numbers or
+     English) is laid out left-to-right so equations keep their order; and vice versa for an English section. */
+  function da(text, dir) {
+    var raw = String(text == null ? '' : text), plain = raw.replace(/\$\$[\s\S]*?\$\$|\$[^$]*\$/g, ' ');
+    var ar = /[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/.test(plain), la = /[A-Za-z]/.test(plain);
+    if (dir === 'rtl' && !ar && /\S/.test(raw)) return ' dir="ltr"';
+    if (dir === 'ltr' && ar && !la) return ' dir="rtl"';
+    return '';
+  }
   function qnum(n, dir) { return dir === 'rtl' ? '(' + n + ')' : n + '.'; }
 
   function renderSection(s, qNo, paperLang) {
@@ -32,37 +41,40 @@
     switch (s.type) {
       case 'mcq':
         h += '<ul class="q-list">' + s.questions.map(function (q, qi) {
-          var opts = q.options.filter(function (o) { return o !== ''; }).map(function (o, oi) { return '<span>(' + 'abcdefgh'[oi] + ') ' + PMath.text(o) + '</span>'; }).join('');
-          var key = (s.showKey || window.__showKeys) && q.correct >= 0 ? ' <span class="keyline">' + (lang === 'ur' ? 'درست جواب' : 'Ans') + ': ' + 'abcdefgh'[q.correct] + '</span>' : '';
-          return '<li class="q-item"><span class="q-no">' + qnum(start + qi, dir) + '</span><div class="q-text">' + blanks2(q.text) + key + '<div class="q-opts">' + opts + '</div></div></li>';
+          // Empty options are skipped; letters stay sequential and the answer key follows the shown letter.
+          var shown = []; (q.options || []).forEach(function (o, oi) { if (String(o == null ? '' : o).trim() !== '') shown.push(oi); });
+          var opts = shown.map(function (oi, k) { return '<span>(' + 'abcdefgh'[k] + ') <span' + da(q.options[oi], dir) + '>' + PMath.text(q.options[oi]) + '</span></span>'; }).join('');
+          var ck = shown.indexOf(q.correct);
+          var key = (s.showKey || window.__showKeys) && ck >= 0 ? ' <span class="keyline">' + (lang === 'ur' ? 'درست جواب' : 'Ans') + ': ' + 'abcdefgh'[ck] + '</span>' : '';
+          return '<li class="q-item"><span class="q-no">' + qnum(start + qi, dir) + '</span><div class="q-text"' + da(q.text, dir) + '>' + blanks2(q.text) + key + '<div class="q-opts" dir="' + dir + '">' + opts + '</div></div></li>';
         }).join('') + '</ul>'; break;
       case 'fill':
-        h += '<ul class="q-list">' + items.map(function (x, k) { return '<li class="q-item"><span class="q-no">' + qnum(start + k, dir) + '</span><div class="q-text">' + blanks(x) + '</div></li>'; }).join('') + '</ul>'; break;
+        h += '<ul class="q-list">' + items.map(function (x, k) { return '<li class="q-item"><span class="q-no">' + qnum(start + k, dir) + '</span><div class="q-text"' + da(x, dir) + '>' + blanks(x) + '</div></li>'; }).join('') + '</ul>'; break;
       case 'tf':
-        h += '<ul class="q-list">' + items.map(function (x, k) { return '<li class="q-item"><span class="q-no">' + qnum(start + k, dir) + '</span><div class="q-text">' + nl(x) + ' &nbsp; <span class="tf-box"></span></div></li>'; }).join('') + '</ul>'; break;
+        h += '<ul class="q-list">' + items.map(function (x, k) { return '<li class="q-item"><span class="q-no">' + qnum(start + k, dir) + '</span><div class="q-text"' + da(x, dir) + '>' + nl(x) + ' &nbsp; <span class="tf-box"></span></div></li>'; }).join('') + '</ul>'; break;
       case 'match':
         var n = Math.max(s.left.length, s.right.length), rows = '';
-        for (i = 0; i < n; i++) rows += '<div>' + PMath.text(s.left[i] || '') + '</div><div>' + PMath.text(s.right[i] || '') + '</div>';
+        for (i = 0; i < n; i++) rows += '<div' + da(s.left[i], dir) + '>' + PMath.text(s.left[i] || '') + '</div><div' + da(s.right[i], dir) + '>' + PMath.text(s.right[i] || '') + '</div>';
         h += '<div class="match"><b>' + t.col_a + '</b><b>' + t.col_b + '</b>' + rows + '</div>'; break;
       case 'short': case 'long':
-        h += '<ul class="q-list">' + items.map(function (x, k) { return '<li class="q-item"><span class="q-no">' + qnum(start + k, dir) + '</span><div class="q-text">' + nl(x) + (s.lines ? lines(s.lines) : (s.type === 'long' ? '<div class="ans-space"></div>' : '')) + '</div></li>'; }).join('') + '</ul>'; break;
+        h += '<ul class="q-list">' + items.map(function (x, k) { return '<li class="q-item"><span class="q-no">' + qnum(start + k, dir) + '</span><div class="q-text"' + da(x, dir) + '>' + nl(x) + (s.lines ? lines(s.lines) : (s.type === 'long' ? '<div class="ans-space"></div>' : '')) + '</div></li>'; }).join('') + '</ul>'; break;
       case 'sentence':
-        h += '<div style="margin:2px 0 8px 26px;display:flex;flex-wrap:wrap;gap:4px 22px">' + items.filter(Boolean).map(function (x) { return '<span>' + PMath.text(x) + '</span>'; }).join('') + '</div>'; break;
+        h += '<div style="margin:2px 0 8px;margin-inline-start:26px;display:flex;flex-wrap:wrap;gap:4px 22px">' + items.filter(Boolean).map(function (x) { return '<span' + da(x, dir) + '>' + PMath.text(x) + '</span>'; }).join('') + '</div>'; break;
       case 'math':
         h += '<ul class="q-list">' + items.map(function (it, k) {
           it = typeof it === 'string' ? { text: it, eq: '', lines: 0 } : it;
-          return '<li class="q-item"><span class="q-no">' + qnum(start + k, dir) + '</span><div class="q-text">' + (it.text ? PMath.text(it.text) : '') +
+          return '<li class="q-item"><span class="q-no">' + qnum(start + k, dir) + '</span><div class="q-text"' + da(it.text, dir) + '>' + (it.text ? PMath.text(it.text) : '') +
             (it.eq ? PMath.equation(it.eq) : '') + (it.lines ? lines(it.lines) : '') + '</div></li>';
         }).join('') + '</ul>'; break;
       case 'rearrange':
-        h += '<ul class="q-list">' + items.map(function (x, k) { return '<li class="q-item"><span class="q-no">' + qnum(start + k, dir) + '</span><div class="q-text">' + nl(x) + '</div></li>'; }).join('') + '</ul>'; break;
+        h += '<ul class="q-list">' + items.map(function (x, k) { return '<li class="q-item"><span class="q-no">' + qnum(start + k, dir) + '</span><div class="q-text"' + da(x, dir) + '>' + nl(x) + '</div></li>'; }).join('') + '</ul>'; break;
       case 'table':
         h += '<table class="p-table">' + s.rows.map(function (r, ri) {
           var tag = s.header && ri === 0 ? 'th' : 'td';
-          return '<tr>' + r.map(function (c) { return '<' + tag + '>' + nl(c) + '</' + tag + '>'; }).join('') + '</tr>';
+          return '<tr>' + r.map(function (c) { return '<' + tag + da(c, dir) + '>' + nl(c) + '</' + tag + '>'; }).join('') + '</tr>';
         }).join('') + '</table>'; break;
       case 'passage':
-        h += '<div class="passage">' + nl(s.passage) + '</div><ul class="q-list">' + items.map(function (x, k) { return '<li class="q-item"><span class="q-no">' + qnum(start + k, dir) + '</span><div class="q-text">' + nl(x) + (s.lines ? lines(s.lines) : '') + '</div></li>'; }).join('') + '</ul>'; break;
+        h += '<div class="passage">' + nl(s.passage) + '</div><ul class="q-list">' + items.map(function (x, k) { return '<li class="q-item"><span class="q-no">' + qnum(start + k, dir) + '</span><div class="q-text"' + da(x, dir) + '>' + nl(x) + (s.lines ? lines(s.lines) : '') + '</div></li>'; }).join('') + '</ul>'; break;
       case 'instr': case 'custom':
         h += '<div class="custom">' + nl(s.text) + '</div>'; break;
     }
@@ -82,9 +94,9 @@
     if (sh.chapter && S.chapter) h += '<div class="p-school" style="font-size:16px;margin-bottom:6px">' + esc(S.chapter) + '</div>';
 
     var meta = [];
-    function m(show, label, val) { if (show && val) meta.push('<span class="meta-item">' + label + ': ' + esc(val) + '</span>'); }
+    function m(show, label, val) { if (show && val) meta.push('<span class="meta-item">' + label + ': <bdi>' + esc(val) + '</bdi></span>'); }
     m(sh.className, t.class_label, S.className); m(sh.subject, t.subject, S.subject);
-    m(sh.date, t.date, S.date); m(sh.duration, t.duration, S.duration);
+    m(sh.date, t.date, fmtDate(S.date)); m(sh.duration, t.duration, S.duration);
     m(sh.totalMarks, t.marks, S.totalMarks); m(sh.passingMarks, t.passing, S.passingMarks);
     if (sh.studentName) meta.push('<span class="meta-item">' + t.name_label + ': ' + '<span class="blank" style="min-width:130px"></span></span>');
     if (sh.rollNo) meta.push('<span class="meta-item">' + t.roll + ': ' + '<span class="blank" style="min-width:70px"></span></span>');
@@ -102,5 +114,15 @@
     return h + '</div>';
   }
 
-  window.PaperRenderer = { render: render, esc: esc };
+  // yyyy-mm-dd (from the date picker) -> dd-mm-yyyy on the paper
+  function fmtDate(d) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d || '')); return m ? m[3] + '-' + m[2] + '-' + m[1] : d; }
+
+  // Renders the auto-translated version when the paper has "Auto-translate preview" switched on
+  // (uses translations already cached; missing ones show in the original language until fetched).
+  function renderAuto(paper, opts) {
+    if (paper.autoTranslate && window.Translator) return render(window.Translator.view(paper).paper, opts);
+    return render(paper, opts);
+  }
+
+  window.PaperRenderer = { render: render, renderAuto: renderAuto, esc: esc };
 })();

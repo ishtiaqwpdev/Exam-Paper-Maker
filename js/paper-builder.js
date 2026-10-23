@@ -29,7 +29,7 @@
   function newPaper(ownerId, lang) {
     var now = new Date().toISOString();
     return {
-      id: uid('p'), ownerId: ownerId, createdAt: now, updatedAt: now, lang: lang || 'en', showKeys: false,
+      id: uid('p'), ownerId: ownerId, createdAt: now, updatedAt: now, lang: lang || 'en', showKeys: false, autoTranslate: false,
       settings: { title: 'Untitled Paper', examName: '', academicYear: '', className: '', subject: '', chapter: '', date: '', duration: '', totalMarks: '', passingMarks: '', school: '', instructions: '', preparedBy: '', logo: '' },
       show: { school: true, logo: true, examName: true, academicYear: false, className: true, subject: true, chapter: false, date: false, duration: true, totalMarks: true, passingMarks: false, studentName: true, rollNo: false, instructions: false, preparedBy: false },
       sections: []
@@ -265,6 +265,8 @@
       '<div class="b-toolbar">' +
         '<button class="btn small" id="b-back">← My Papers</button>' +
         '<label class="check">Language <select id="b-lang" class="inp" style="width:auto"><option value="en">English</option><option value="ur">اردو</option></select></label>' +
+        '<label class="check tr-toggle" id="b-tr-wrap" title="Write in Urdu to see the preview in English, or write in English to see it in Urdu. Print and PDF use the translated version."><input type="checkbox" id="b-tr"> Auto-translate preview (اردو ⇄ English)</label>' +
+        '<span class="tr-state" id="b-tr-state" aria-live="polite"></span>' +
         '<span class="grow"></span><span class="save-state" id="b-state">All changes saved</span>' +
         '<button class="btn small" id="b-save">Save</button>' +
         '<button class="btn small" id="b-print">Print</button>' +
@@ -296,7 +298,37 @@
       f.dispatchEvent(new Event('input', { bubbles: true }));
     }
 
-    function preview() { paperEl.innerHTML = PaperRenderer.render(paper, { showKeys: paper.showKeys }); }
+    /* ----- preview (optionally auto-translated Urdu ⇄ English) ----- */
+    var trTimer = null;
+    function trStatus(v) {
+      var el = root.querySelector('#b-tr-state'), wrap = root.querySelector('#b-tr-wrap');
+      wrap.classList.toggle('on', !!paper.autoTranslate);
+      if (!paper.autoTranslate || !v) { el.className = 'tr-state'; el.textContent = ''; return; }
+      var dir = Translator.langName(v.source) + ' → ' + Translator.langName(v.target);
+      if (!v.missing.length) { el.className = 'tr-state'; el.textContent = 'Preview: ' + dir; return; }
+      if (Translator.status().pending || v.missing.some(Translator.canFetch)) { el.className = 'tr-state'; el.textContent = 'Translating ' + dir + '…'; return; }
+      el.className = 'tr-state warn';
+      el.innerHTML = '⚠ ' + v.missing.length + ' item' + (v.missing.length === 1 ? '' : 's') + ' not translated, shown in original. ' + esc(Translator.status().error || '') + ' <button type="button" class="link-btn" id="b-tr-retry">Retry</button>';
+      el.querySelector('#b-tr-retry').onclick = function () { Translator.retry(); preview(); };
+    }
+    function preview() {
+      if (!paper.autoTranslate || !window.Translator) { paperEl.innerHTML = PaperRenderer.render(paper, { showKeys: paper.showKeys }); trStatus(null); return; }
+      var v = Translator.view(paper);
+      paperEl.innerHTML = PaperRenderer.render(v.paper, { showKeys: paper.showKeys });
+      trStatus(v);
+      var todo = v.missing.filter(Translator.canFetch);
+      clearTimeout(trTimer);
+      // wait for a pause in typing before asking for translations (longer when Claude translates)
+      if (todo.length) trTimer = setTimeout(function () { Translator.fetch(todo).then(function () { if (paperEl.isConnected) preview(); }); }, Translator.usesClaude() ? 1200 : 450);
+    }
+    // When the paper language changes, default section titles follow it (custom titles are kept).
+    function applyLang(nl) {
+      if ((nl === 'en' || nl === 'ur') && nl !== paper.lang) {
+        var oldT = Translations.get(paper.lang).types, newT = Translations.get(nl).types;
+        paper.sections.forEach(function (s) { if (!s.lang && s.title === oldT[s.type]) s.title = newT[s.type]; });
+      }
+      paper.lang = nl;
+    }
     function save(manual) {
       clearTimeout(saveTimer);
       if (PMStorage.savePaper(paper, user)) { dirty = false; stateEl.textContent = 'Saved ' + new Date().toLocaleTimeString(); if (manual) Dashboard.toast('Paper saved'); if (opts.onSaved) opts.onSaved(paper); }
@@ -325,6 +357,7 @@
       else if (kind === 'bool') val = t.checked;
       else if (kind === 'num') val = Math.max(0, parseInt(t.value || '0', 10) || 0);
       else val = t.value;
+      if (p === 'lang') { applyLang(val); renderEditor(); touch(); return; }
       setAt(paper, p, val);
       if (t.hasAttribute('data-math')) { var lv = t.parentNode.querySelector('.math-live'); if (lv) lv.innerHTML = val ? PMath.equation(val) : '<span class="muted" style="font-size:12px">Equation preview</span>'; }
       if (/\.title$/.test(p) && p.indexOf('sections.') === 0) {
@@ -363,7 +396,9 @@
         case 'math-ins': mathInsert(el.getAttribute('data-snip'), el.getAttribute('data-kind')); return;
         case 'add-q': secs[si].questions.push({ text: '', options: ['', '', '', ''], correct: -1 }); rerender(); return;
         case 'add-opt': getAt(paper, el.getAttribute('data-q')).options.push(''); rerender(); return;
-        case 'del-opt': var q = getAt(paper, el.getAttribute('data-q')); q.options.splice(i, 1); if (q.correct >= q.options.length) q.correct = -1; rerender(); return;
+        case 'del-opt': var q = getAt(paper, el.getAttribute('data-q')); q.options.splice(i, 1);
+          if (q.correct === i) q.correct = -1; else if (q.correct > i) q.correct--; // keep the marked answer on the same option
+          rerender(); return;
         case 'add-row': var cols = secs[si].rows[0].length; secs[si].rows.push(new Array(cols).fill('')); rerender(); return;
         case 'del-row': if (secs[si].rows.length > 1) { secs[si].rows.splice(i, 1); rerender(); } return;
         case 'add-col': secs[si].rows.forEach(function (r) { r.push(''); }); rerender(); return;
@@ -385,7 +420,12 @@
     editEl.addEventListener('dragend', function () { dragFrom = null; editEl.querySelectorAll('.drag-over').forEach(function (n) { n.classList.remove('drag-over'); }); editEl.querySelectorAll('.sec[draggable]').forEach(function (n) { n.removeAttribute('draggable'); }); });
 
     // ----- toolbar -----
-    root.querySelector('#b-lang').addEventListener('change', function (e) { paper.lang = e.target.value; rerender(); });
+    root.querySelector('#b-lang').addEventListener('change', function (e) { applyLang(e.target.value); rerender(); });
+    var trBox = root.querySelector('#b-tr'); trBox.checked = !!paper.autoTranslate;
+    trBox.addEventListener('change', function () {
+      paper.autoTranslate = trBox.checked; touch();
+      if (trBox.checked) Dashboard.toast('Auto-translate on: Urdu text shows in English, English text shows in Urdu.');
+    });
     root.querySelector('#b-save').addEventListener('click', function () { save(true); });
     root.querySelector('#b-print').addEventListener('click', function () { save(false); Export.print(paper); });
     root.querySelector('#b-pdf').addEventListener('click', function () { save(false); Export.pdf(paper); });

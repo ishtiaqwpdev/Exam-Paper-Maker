@@ -45,11 +45,19 @@
       return { user: u };
     },
     loginAs: function (role) {
-      var u = this.users().find(function (x) { return x.role === role; });
-      if (u) write(K.session, { userId: u.id });
+      var users = this.users();
+      var u = users.find(function (x) { return x.role === role; });
+      if (!u) { // demo account was removed — recreate it so the demo shortcut always works
+        var demoEmail = role === 'admin' ? 'admin@demo.test' : 'teacher@demo.test';
+        u = users.find(function (x) { return x.email.toLowerCase() === demoEmail; });
+        if (u) u.role = role;
+        else { u = { id: role === 'admin' ? 'u_admin' : uid('u'), name: role === 'admin' ? 'Main Admin' : 'Demo Teacher', email: demoEmail, pass: fakeHash(role === 'admin' ? 'admin123' : 'teacher123'), role: role, academy: 'Demo Academy' }; users.push(u); }
+        this.saveUsers(users);
+      }
+      write(K.session, { userId: u.id });
       return u;
     },
-    logout: function () { localStorage.removeItem(K.session); },
+    logout: function () { try { localStorage.removeItem(K.session); } catch (e) {} },
     currentUser: function () {
       var s = read(K.session, null); if (!s) return null;
       return this.users().find(function (u) { return u.id === s.userId; }) || null;
@@ -86,7 +94,7 @@
       var p = this.getPaper(id, user); if (!p) return false;
       write(K.papers, this.allPapers().filter(function (x) { return x.id !== id; })); return true;
     },
-    resetDemo: function () { Object.keys(K).forEach(function (k) { localStorage.removeItem(K[k]); }); }
+    resetDemo: function () { try { Object.keys(K).forEach(function (k) { localStorage.removeItem(K[k]); }); localStorage.removeItem('pm_tr_cache_v1'); } catch (e) {} }
   };
   window.PMStorage = Storage;
 })();

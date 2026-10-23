@@ -16,11 +16,11 @@
     ur: {
       dir: 'rtl', name: 'اردو',
       name_label: 'نام', roll: 'رول نمبر', date: 'تاریخ', class_label: 'جماعت', subject: 'مضمون', chapter: 'سبق',
-      duration: 'وقفہ', marks: 'نشانات', passing: 'پاس نمبر', prepared: 'تیار کردہ', answer: 'جواب:',
+      duration: 'وقت', marks: 'نشانات', passing: 'پاس نمبر', prepared: 'تیار کردہ', answer: 'جواب:',
       q: 'سوال', true_: 'درست', false_: 'غلط', col_a: 'کالم الف', col_b: 'کالم ب', instructions: 'ہدایات',
       marks_word: 'نشانات', passage: 'عبارت', tf_hint: 'درست یا غلط لکھیے۔',
       types: {
-        mcq: 'کثیر انتخابی سوالات', math: 'ریاضی کے سوالات', fill: 'خالی جگہ پر کریں', tf: 'درست یا غلط', match: 'کالم الف کو کالم ب سے ملائیں',
+        mcq: 'کثیر انتخابی سوالات', math: 'ریاضی کے سوالات', fill: 'خالی جگہ پُر کریں', tf: 'درست یا غلط', match: 'کالم الف کو کالم ب سے ملائیں',
         short: 'مختصر جوابات', long: 'تفصیلی جوابات', sentence: 'جملے بنائیں', rearrange: 'ترتیب دیں',
         table: 'جدول والے سوالات', passage: 'عبارت اور فہم', instr: 'عمومی ہدایات', custom: 'متن'
       }

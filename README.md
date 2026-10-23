@@ -55,6 +55,26 @@ thumbnails, print and the PDF download.
   `\sum_{i=1}^{n}`, `\int_{a}^{b}`, `\sin \theta`, `\text{cm}`, and symbol commands such as `\pi \times \div \pm \leq \geq \neq \approx \infty \angle \triangle \therefore`.
 - A "Mathematics sample (Grade 8)" paper is included (Templates, and in the seed data of a fresh browser).
 
+## Auto-translate preview (Urdu ⇄ English)
+
+In the Paper Builder toolbar, tick **Auto-translate preview (اردو ⇄ English)**:
+
+- Write the paper in **Urdu** → the preview shows it in **English** (left-to-right, English labels: Q1, Subject, Total Marks…).
+- Write the paper in **English** → the preview shows it in **Urdu** (right-to-left, Urdu labels: سوال، مضمون، نشانات…).
+- The language is detected from what you actually type (per section), so it works even if the paper language setting is left on English.
+- Maths (`$…$`, `$$…$$`), answer blanks (`___`) and numbers are never translated.
+- The setting is saved with the paper. **View, Print and Download PDF use the translated version** while it is on; paper cards show an "auto-translated" tag.
+- The status next to the checkbox shows the direction (e.g. `Preview: اردو → English`) or "Translating…".
+
+In the online preview on claude.ai, translation is done by Claude (the first time, the page asks you to allow it) because
+the preview cannot reach outside sites. When you open `index.html` on your own computer, the free web services below are used.
+
+How translation works: common exam phrases (section types, subject names) are translated offline by a built-in dictionary.
+Everything else uses a free online service (Google Translate web endpoint, falling back to MyMemory) — **an internet connection is needed the first time a sentence is translated**.
+Results are cached in the browser, so the same text works offline afterwards. If no service can be reached, the original text stays in the preview and a
+"not translated — Retry" message appears. Machine translation is not perfect, so read the paper before printing.
+For the production/WordPress version, replace `remote()` in `js/translate.js` with your own server-side translation API (e.g. Google Cloud Translation) — the free endpoints have rate limits.
+
 ## Fonts (temporary)
 
 Change fonts in one place — the CSS variables at the top of `styles.css`:
@@ -76,6 +96,7 @@ app.js                bootstrap, login/register, routing
 js/storage.js         LocalStorage users + papers, ownership checks (demo)
 js/translations.js    English/Urdu labels for paper content
 js/math.js            equation engine ($…$ -> HTML/CSS)
+js/translate.js       Urdu ⇄ English auto-translate (detection, maths protection, cache, online service)
 js/paper-builder.js   paper data model, samples, editor UI
 js/paper-renderer.js  paper -> printable HTML (preview, thumbnails, print, PDF)
 js/dashboard.js       app shell, dashboard, papers list, profile, settings, admin views

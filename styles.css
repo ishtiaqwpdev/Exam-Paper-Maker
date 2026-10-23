@@ -132,7 +132,8 @@ a { color: inherit; }
 .modal.wide { max-width: 900px; max-height: 90vh; overflow: auto; }
 .modal h3 { margin-bottom: 8px; }
 .modal .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
-.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #000; color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 14px; z-index: 200; }
+#toast-root { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; z-index: 200; pointer-events: none; width: max-content; max-width: calc(100vw - 32px); }
+.toast { background: #000; color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 14px; text-align: center; }
 
 /* ---------- Builder ---------- */
 .builder { display: flex; flex-direction: column; height: calc(100vh - var(--topbar-h)); }
@@ -199,7 +200,7 @@ a { color: inherit; }
 .paper .blank { display: inline-block; border-bottom: 1px solid #000; min-width: 110px; height: 1em; vertical-align: baseline; }
 .paper .ans-line { border-bottom: 1px solid #000; height: 28px; margin-top: 2px; }
 .paper .ans-space { height: 60px; }
-.paper .match { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 40px; margin: 4px 0 10px 26px; }
+.paper .match { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 40px; margin: 4px 0 10px; margin-inline-start: 26px; }
 .paper .match b { font-size: 14px; }
 .paper table.p-table { border-collapse: collapse; width: 100%; margin: 4px 0 10px; }
 .paper table.p-table td, .paper table.p-table th { border: 1.5px solid #000; padding: 6px 8px; min-height: 30px; height: 30px; }
@@ -214,12 +215,13 @@ a { color: inherit; }
 /* ---------- Print: only the paper ---------- */
 #print-root { display: none; }
 @media print {
-  @page { size: A4; margin: 0; }
+  /* 12mm top/bottom page margin so every printed page (not only the first) has breathing room */
+  @page { size: A4; margin: 12mm 0; }
   /* Remove the whole app from print flow (no blank trailing pages) and print only the staged paper. */
   #root, #toast-root, .modal-bg { display: none !important; }
   html, body { background: #fff; }
   #print-root { display: block !important; position: static; width: 100%; }
-  #print-root .paper { box-shadow: none; width: 100%; min-height: 0; }
+  #print-root .paper { box-shadow: none; width: 100%; min-height: 0; padding: 0 56px; }
   .paper-wrap { width: 100%; zoom: 1; }
 }
 
@@ -288,3 +290,12 @@ a { color: inherit; }
 .mono { font-family: "Courier New", monospace; }
 .math-help { font-size: 12px; color: var(--color-muted); line-height: 1.5; margin: 6px 0 0; }
 .math-help code { border: 1px solid var(--color-border); border-radius: 4px; padding: 0 4px; background: var(--color-soft); font-size: 11.5px; }
+
+/* ---------- Auto-translate (Urdu ⇄ English preview) ---------- */
+.tr-toggle { border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); padding: 5px 9px; font-weight: 600; }
+.tr-toggle.on { border-color: #000; background: var(--color-soft); }
+.tr-state { font-size: 12px; color: var(--color-muted); display: inline-flex; align-items: center; gap: 6px; }
+.tr-state.warn { color: #000; font-weight: 600; }
+.tr-state .link-btn { font-size: 12px; }
+.tr-banner { width: 794px; margin: 0 auto 10px; font-size: 12.5px; background: #fff; border: 1px dashed #000; border-radius: var(--radius-sm); padding: 6px 10px; }
+@media (max-width: 1000px) { .tr-banner { width: auto; } }

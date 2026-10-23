@@ -11,8 +11,21 @@
     return root;
   }
 
+  // With "Auto-translate preview" on, print/PDF use the translated paper (fetching anything not yet translated).
+  function withTranslation(paper, cb) {
+    if (!paper.autoTranslate || !window.Translator) return cb(paper);
+    Dashboard.toast('Translating paper…');
+    window.Translator.prepare(paper).then(function (v) {
+      if (v.missing.length) Dashboard.toast(v.missing.length + ' item(s) not translated — they stay in the original language. ' + (window.Translator.status().error || ''));
+      cb(v.paper);
+    });
+  }
+
   function print(paper) {
     if (window.__ARTIFACT) { Dashboard.toast('Print and PDF are blocked in the online preview. Open index.html from the downloaded folder to use them.'); return; }
+    withTranslation(paper, doPrint);
+  }
+  function doPrint(paper) {
     stage(paper);
     var old = document.title; document.title = fileName(paper);
     setTimeout(function () { window.print(); document.title = old; }, 80);
@@ -30,11 +43,14 @@
 
   function pdf(paper) {
     if (window.__ARTIFACT) { Dashboard.toast('Print and PDF are blocked in the online preview. Open index.html from the downloaded folder to use them.'); return; }
+    withTranslation(paper, doPdf);
+  }
+  function doPdf(paper) {
     Dashboard.toast('Preparing PDF…');
     loadLib(function (ok) {
       if (!ok || !window.html2pdf) {
         Dashboard.toast('PDF library not reachable — opening print dialog. Choose "Save as PDF".');
-        return setTimeout(function () { print(paper); }, 900);
+        return setTimeout(function () { doPrint(paper); }, 900);
       }
       var host = document.createElement('div');
       host.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;background:#fff';
