@@ -107,6 +107,10 @@ In the Paper Builder toolbar, tick **Auto-translate preview (اردو ⇄ Englis
 In the online preview on claude.ai, translation is done by Claude (the first time, the page asks you to allow it) because
 the preview cannot reach outside sites. When you open `index.html` on your own computer, the free web services below are used.
 
+On the live site, translation runs **on the server** (`api/translate.js`), so it works the same on every device and network —
+ad-blockers, privacy browsers or school Wi-Fi cannot block it. With the database connected, every translated sentence is saved
+in the table `pm_translations` and shared by all users and devices, so the same sentence is only translated once.
+
 How translation works: common exam phrases (section types, subject names) are translated offline by a built-in dictionary.
 Everything else uses a free online service (Google Translate web endpoint, falling back to MyMemory) — **an internet connection is needed the first time a sentence is translated**.
 Results are cached in the browser, so the same text works offline afterwards. If no service can be reached, the original text stays in the preview and a
@@ -139,7 +143,7 @@ index.html            page shell
 styles.css            all styles (colour + font variables at top)
 app.js                bootstrap, login/register, routing
 js/storage.js         accounts + papers: cloud (database API) or local (browser) mode
-api/                  Vercel functions: data.js (database API), send-reset.js / verify-reset.js (reset emails)
+api/                  Vercel functions: data.js (database API), translate.js (Urdu ⇄ English), send-reset.js / verify-reset.js (reset emails)
 js/translations.js    English/Urdu labels for paper content
 js/theme.js           light / dark mode toggle
 js/math.js            equation engine ($…$ -> HTML/CSS)

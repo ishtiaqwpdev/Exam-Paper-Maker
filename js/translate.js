@@ -207,43 +207,90 @@
       items.forEach(function (it) { failed[it.key] = Date.now(); });
     });
   }
+  /* ---------------- our own server (/api/translate) ----------------
+     The live site translates on the server, so every device and network works the same way (ad-blockers,
+     school Wi-Fi or privacy browsers cannot block it). If the page is opened from a folder, or the server
+     is not reachable, the browser asks the translation services directly as before. */
+  var serverState = /^https?:$/.test(location.protocol) ? 'unknown' : 'off';   // unknown | on | off
+  function postTranslate(items) {
+    return fetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items: items }) })
+      .then(function (r) { return r.text().then(function (t) { var j = null; try { j = JSON.parse(t); } catch (e) {} return { status: r.status, j: j }; }); },
+        function () { return { status: 0, j: null }; });
+  }
+  function serverBatch(items) {
+    return postTranslate(items.map(function (it) { return { text: it.text, sl: it.sl, tl: it.tl }; })).then(function (r) {
+      if (!r.j || r.status === 404 || r.status === 405) { serverState = 'off'; return 'fallback'; }   // no server here: use the browser route
+      if (r.status === 429) { lastError = 'Too many translations at once — wait a minute, then press Retry.'; items.forEach(function (it) { failed[it.key] = Date.now(); }); return; }
+      if (!r.j.results) { lastError = 'Translation failed — press Retry.'; items.forEach(function (it) { failed[it.key] = Date.now(); }); return; }
+      serverState = 'on';
+      var redo = [];
+      items.forEach(function (it, i) {
+        var t = r.j.results[i];
+        if (typeof t === 'string' && t.trim() && (!it.toks || unmask(t, new Array(it.toks)) !== null)) { cache[it.key] = t.trim(); delete failed[it.key]; }
+        else if (typeof t === 'string' && t.trim() && it.toks) redo.push(it);               // placeholders got mangled: do it piece by piece
+        else failed[it.key] = Date.now();
+      });
+      if (!redo.length) { persist(); lastError = Object.keys(failed).length ? 'Some text could not be translated — press Retry.' : ''; return; }
+      var parts = [], plan = redo.map(function (it) {
+        return it.text.split(/(\{\{\d+\}\})/).map(function (p) {
+          if (/^\{\{\d+\}\}$/.test(p) || scriptOf(p) !== it.sl) return { keep: p };
+          parts.push({ text: p.trim(), sl: it.sl, tl: it.tl }); return { idx: parts.length - 1, lead: p.match(/^\s*/)[0], trail: p.match(/\s*$/)[0] };
+        });
+      });
+      return postTranslate(parts).then(function (r2) {
+        var out = (r2.j && r2.j.results) || [];
+        redo.forEach(function (it, k) {
+          var okAll = true, str = plan[k].map(function (seg) { if (seg.keep !== undefined) return seg.keep; var t = out[seg.idx]; if (typeof t !== 'string' || !t.trim()) okAll = false; return seg.lead + (t || '').trim() + seg.trail; }).join('');
+          if (okAll) { cache[it.key] = str; delete failed[it.key]; } else failed[it.key] = Date.now();
+        });
+        persist();
+      });
+    });
+  }
+
   var claudeChain = Promise.resolve();
-  function viaClaude(list) {
+  function viaBatch(list, batchFn, size) {
     var todo = [], seen = {};
     list.forEach(function (it) { if (!seen[it.key] && !inflight[it.key]) { seen[it.key] = 1; todo.push(it); } });
     var ps = list.filter(function (it) { return inflight[it.key]; }).map(function (it) { return inflight[it.key]; });
-    for (var i = 0; i < todo.length; i += 40) {
+    var fallback = [];
+    for (var i = 0; i < todo.length; i += size) {
       (function (chunk) {
-        // batches run one after another (never in parallel) to stay well inside the viewer's limits
-        var p = claudeChain = claudeChain.then(function () { active += chunk.length; notify(); return claudeBatch(chunk); })
-          .then(done, done);
+        var p = claudeChain = claudeChain.then(function () { active += chunk.length; notify(); return batchFn(chunk); })
+          .then(function (v) { if (v === 'fallback') fallback = fallback.concat(chunk); done(); }, done);
         function done() { active = Math.max(0, active - chunk.length); chunk.forEach(function (it) { delete inflight[it.key]; }); notify(); }
         chunk.forEach(function (it) { inflight[it.key] = p; });
         ps.push(p);
-      })(todo.slice(i, i + 40));
+      })(todo.slice(i, i + size));
     }
+    return Promise.all(ps).then(function () { if (fallback.length) return viaBrowser(fallback); });
+  }
+  function viaBrowser(list) {
+    var ps = [];
+    list.forEach(function (it) {
+      if (Object.prototype.hasOwnProperty.call(cache, it.key)) return;
+      if (!inflight[it.key]) inflight[it.key] = enqueue(it);
+      ps.push(inflight[it.key]);
+    });
     return Promise.all(ps);
   }
+  function viaClaude(list) { return viaBatch(list, claudeBatch, 40); }
+
 
   /* Fetch every missing translation (deduplicated). Resolves when all are done (success or failure). */
   function fetchMissing(list) {
     list = (list || []).filter(function (it) { return !Object.prototype.hasOwnProperty.call(cache, it.key) && !recentlyFailed(it.key); });
     if (!list.length) return Promise.resolve();
     return sampleReady.then(function () {
-      if (sampleFn) return viaClaude(list);
-      var ps = [];
-      list.forEach(function (it) {
-        if (Object.prototype.hasOwnProperty.call(cache, it.key)) return;
-        if (!inflight[it.key]) inflight[it.key] = enqueue(it);
-        ps.push(inflight[it.key]);
-      });
-      return Promise.all(ps);
+      if (sampleFn) return viaClaude(list);                       // Claude artifact preview
+      if (serverState !== 'off') return viaBatch(list, serverBatch, 50);   // live site: our server
+      return viaBrowser(list);                                    // opened from a folder
     });
   }
   function canFetch(it) { return !Object.prototype.hasOwnProperty.call(cache, it.key) && !recentlyFailed(it.key); }
   function status() {
     var f = 0, now = Date.now(); for (var k in failed) if (now - failed[k] < RETRY_AFTER) f++;
-    return { pending: active + queue.length, failed: f, error: f ? lastError : '', viaClaude: !!sampleFn };
+    return { pending: active + queue.length, failed: f, error: f ? lastError : '', viaClaude: !!sampleFn, viaServer: serverState === 'on' };
   }
 
   /* ---------------- whole paper ---------------- */
