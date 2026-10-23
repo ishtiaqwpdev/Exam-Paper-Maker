@@ -20,7 +20,7 @@ npx serve .                      # alternative
 | Teacher | teacher@demo.test  | teacher123 |
 | Admin   | admin@demo.test    | admin123   |
 
-The login screen also has "Log in as Teacher / Admin" shortcuts. You can register new teacher accounts too.
+Log in with these on the normal login form, or register a new teacher account with "Create Account".
 Accounts and papers live in this browser's LocalStorage. Passwords are only lightly obfuscated for the demo.
 **The real product must use server-side authentication and authorization** (e.g. WordPress auth, a capability
 check on every read/write, teachers restricted to their own papers). Settings → "Reset demo data" restores the sample data.

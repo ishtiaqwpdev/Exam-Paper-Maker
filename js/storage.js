@@ -42,7 +42,8 @@
     // otherwise it lasts only for this tab (sessionStorage).
     login: function (email, password, remember) {
       var u = this.users().find(function (x) { return x.email.toLowerCase() === email.toLowerCase(); });
-      if (!u || u.pass !== fakeHash(password)) return { error: 'Incorrect email or password.' };
+      if (!u) return { error: 'No account found with this email. Click “Create Account” to register first.', noAccount: true };
+      if (u.pass !== fakeHash(password)) return { error: 'Incorrect password. Please try again.' };
       this.logout();
       if (remember === false) { try { sessionStorage.setItem(K.session, JSON.stringify({ userId: u.id })); } catch (e) { write(K.session, { userId: u.id }); } }
       else write(K.session, { userId: u.id });

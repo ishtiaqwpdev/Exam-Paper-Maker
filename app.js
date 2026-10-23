@@ -44,7 +44,7 @@
         '<label class="check remember"><input type="checkbox" id="remember" checked> Keep me logged in</label>' +
         '<button class="btn primary auth-submit">Log In</button></form>' +
         '<div class="auth-switch"><button type="button" class="link-btn" id="forgot">Forgot your password?</button></div>' +
-        '<div class="demo-box"><b>Demo shortcuts</b> <span class="muted">(testing only — not real security)</span><div class="row"><button type="button" class="btn small" id="d-teacher">Log in as Teacher</button><button type="button" class="btn small" id="d-admin">Log in as Admin</button></div><div class="muted">Teacher: teacher@demo.test / teacher123 · Admin: admin@demo.test / admin123</div></div>'
+        '<div class="auth-switch muted" style="font-size:14px">New here? <button type="button" class="link-btn" id="to-reg">Create an account</button></div>'
       : '<form id="f" novalidate><div class="field"><label for="nm">Your name</label><input id="nm" autocomplete="name" placeholder="e.g. Ayesha Khan"></div>' +
         '<div class="field"><label for="acad">School / academy name</label><input id="acad" autocomplete="organization" placeholder="e.g. Bright Future Academy"></div>' +
         '<div class="field"><label for="em">Email</label><input id="em" type="email" autocomplete="email" placeholder="you@example.com"></div>' +
@@ -58,8 +58,7 @@
     var first = root.querySelector(login ? '#em' : '#nm'); if (first) first.focus();
 
     if (login) {
-      root.querySelector('#d-teacher').onclick = function () { PMStorage.loginAs('teacher'); boot(); };
-      root.querySelector('#d-admin').onclick = function () { PMStorage.loginAs('admin'); boot(); };
+      root.querySelector('#to-reg').onclick = function () { authScreen('register'); };
       root.querySelector('#forgot').onclick = function () {
         var em = root.querySelector('#em').value.trim();
         Dashboard.modal('<h3>Reset your password</h3><p class="muted">Enter your account email.</p><div class="field"><label for="fp-em">Email</label><input id="fp-em" type="email" value="' + esc(em) + '" placeholder="you@example.com"></div><div id="fp-msg"></div><div class="actions"><button class="btn" data-no>Close</button><button class="btn primary" data-ok>Send reset link</button></div>', function (m, close) {
