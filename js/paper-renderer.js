@@ -124,5 +124,26 @@
     return render(paper, opts);
   }
 
-  window.PaperRenderer = { render: render, renderAuto: renderAuto, esc: esc };
+  /* Scale the A4 paper (794px) down to fit the preview / view area on any screen, so phones and
+     tablets see the whole width without sideways scrolling. Runs on resize and whenever pages change. */
+  function fitPapers() {
+    document.querySelectorAll('.b-preview, .view-stage').forEach(function (box) {
+      var wrap = box.querySelector('.paper-wrap'); if (!wrap || !box.clientWidth) return;
+      var cs = getComputedStyle(box), avail = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      var z = Math.min(1, avail / 794);
+      wrap.style.zoom = z < 0.999 ? String(Math.max(0.2, z).toFixed(4)) : '';
+      var banner = box.querySelector('.tr-banner'); if (banner) banner.style.width = z < 0.999 ? 'auto' : '';
+    });
+  }
+  var fitQueued = false;
+  function queueFit() { if (fitQueued) return; fitQueued = true; requestAnimationFrame(function () { fitQueued = false; fitPapers(); }); }
+  window.addEventListener('resize', queueFit);
+  window.addEventListener('orientationchange', queueFit);
+  document.addEventListener('DOMContentLoaded', function () {
+    var root = document.getElementById('root');
+    if (root && window.MutationObserver) new MutationObserver(queueFit).observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-tab', 'class'] });
+    queueFit();
+  });
+
+  window.PaperRenderer = { render: render, renderAuto: renderAuto, esc: esc, fit: fitPapers };
 })();

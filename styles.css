@@ -273,7 +273,6 @@ a { color: inherit; }
   .b-body[data-tab="edit"] .b-preview { display: none; }
   .b-body[data-tab="preview"] .b-edit { display: none; }
   .b-preview { padding: 12px; }
-  .paper-wrap { zoom: .5; }
 }
 @media (max-width: 800px) {
   .app { grid-template-columns: 1fr; }
@@ -373,3 +372,51 @@ a { color: inherit; }
 .auth-theme { position: fixed; top: 16px; right: 16px; width: 40px; height: 40px; border-radius: 50%; z-index: 5; }
 .auth-theme svg { width: 18px; height: 18px; }
 html { transition: none; }
+
+/* ---------- Every device: phones, tablets, touch screens ---------- */
+/* The A4 paper is scaled to fit its container by fitPapers() in paper-renderer.js (no sideways scrolling). */
+@media (max-width: 800px) {
+  /* 16px stops iPhone Safari from zooming the whole page when a field is tapped */
+  .field input, .field select, .field textarea, .inp, .b-toolbar select { font-size: 16px; }
+  .topbar h1 { font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .topbar .right { gap: 8px; }
+  .view-stage { padding: 12px; }
+  .b-toolbar { padding: 10px 12px; gap: 8px; }
+  .b-toolbar .grow { display: none; }
+  .b-toolbar .tr-toggle { order: 5; width: 100%; justify-content: flex-start; }
+  .b-toolbar .tr-state { order: 6; width: 100%; }
+  .b-edit { padding: 12px 12px 60px; }
+  .opts { grid-template-columns: 1fr; }
+  .toggle-grid { grid-template-columns: 1fr 1fr; }
+  .welcome { padding: 18px; }
+  .welcome h2 { font-size: 20px; }
+  .panel { padding: 16px; }
+  .stats { gap: 10px; }
+  .stat { padding: 14px 8px; }
+  .stat .n { font-size: 24px; }
+  .toolbar .inp { flex: 1 1 140px; min-width: 0; }
+  .table { display: block; overflow-x: auto; white-space: nowrap; }
+  .modal { padding: 18px; }
+  .dropdown { max-width: calc(100vw - 24px); }
+}
+@media (max-width: 420px) {
+  .toggle-grid { grid-template-columns: 1fr; }
+  .card-actions .btn { flex: 1 1 40%; }
+  .add-grid { grid-template-columns: 1fr; }
+}
+/* Touch screens: bigger tap targets (about 40px) */
+@media (pointer: coarse) {
+  .icon-btn { width: 40px; height: 40px; font-size: 16px; }
+  .btn.small { min-height: 38px; padding: 6px 12px; }
+  .btn { min-height: 42px; }
+  .nav button { padding: 12px; }
+  .check input[type="checkbox"], .check input[type="radio"], .opt-line input[type="radio"] { width: 20px; height: 20px; }
+  .mbtn { min-width: 40px; height: 40px; }
+  .sec-head { flex-wrap: wrap; }
+  .sec-head .handle { display: none; }   /* drag needs a mouse; ↑ ↓ buttons reorder on touch */
+}
+/* mobile browsers: 100vh includes the hidden address bar; dvh is the real visible height */
+@supports (height: 100dvh) { .builder { height: calc(100dvh - var(--topbar-h)); } .app, .auth-wrap { min-height: 100dvh; } .sidebar { height: 100dvh; } }
+.topbar > div:first-child { min-width: 0; flex: 1 1 auto; }
+.topbar .right { flex: none; }
+@media (max-width: 400px) { .profile-btn { gap: 2px; } .topbar { padding: 0 10px; } .topbar .right { gap: 6px; } }
