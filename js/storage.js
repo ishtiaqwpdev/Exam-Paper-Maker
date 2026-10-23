@@ -31,17 +31,21 @@
     },
     users: function () { return read(K.users, []); },
     saveUsers: function (u) { write(K.users, u); },
-    register: function (name, email, password) {
+    register: function (name, email, password, academy) {
       var users = this.users();
       if (users.some(function (u) { return u.email.toLowerCase() === email.toLowerCase(); })) return { error: 'An account with this email already exists.' };
-      var user = { id: uid('u'), name: name, email: email, pass: fakeHash(password), role: 'teacher', academy: '' };
+      var user = { id: uid('u'), name: name, email: email, pass: fakeHash(password), role: 'teacher', academy: academy || '' };
       users.push(user); this.saveUsers(users);
       return { user: user };
     },
-    login: function (email, password) {
+    // remember = "Keep me logged in": session survives closing the browser (localStorage);
+    // otherwise it lasts only for this tab (sessionStorage).
+    login: function (email, password, remember) {
       var u = this.users().find(function (x) { return x.email.toLowerCase() === email.toLowerCase(); });
       if (!u || u.pass !== fakeHash(password)) return { error: 'Incorrect email or password.' };
-      write(K.session, { userId: u.id });
+      this.logout();
+      if (remember === false) { try { sessionStorage.setItem(K.session, JSON.stringify({ userId: u.id })); } catch (e) { write(K.session, { userId: u.id }); } }
+      else write(K.session, { userId: u.id });
       return { user: u };
     },
     loginAs: function (role) {
@@ -57,9 +61,11 @@
       write(K.session, { userId: u.id });
       return u;
     },
-    logout: function () { try { localStorage.removeItem(K.session); } catch (e) {} },
+    logout: function () { try { localStorage.removeItem(K.session); } catch (e) {} try { sessionStorage.removeItem(K.session); } catch (e) {} },
     currentUser: function () {
-      var s = read(K.session, null); if (!s) return null;
+      var s = read(K.session, null);
+      if (!s) { try { s = JSON.parse(sessionStorage.getItem(K.session) || 'null'); } catch (e) { s = null; } }
+      if (!s) return null;
       return this.users().find(function (u) { return u.id === s.userId; }) || null;
     },
     updateUser: function (id, patch) {
