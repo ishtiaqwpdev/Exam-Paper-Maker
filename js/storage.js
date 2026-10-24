@@ -223,7 +223,9 @@
     /* ----- papers (instant reads; cloud writes sync in the background) ----- */
     allPapers: function () { return this.mode === 'cloud' ? cloud.papers : Local.papers(); },
     /* working papers (My Papers). Library copies (kind: 'library') are kept apart — see libraryFor */
-    papersFor: function (user) { return this.visibleFor(user).filter(function (p) { return p.kind !== 'library'; }); },
+    papersFor: function (user) { return this.visibleFor(user).filter(function (p) { return !p.kind; }); },
+    /* My templates: papers saved as reusable layouts (kind: 'template') */
+    templatesFor: function (user) { return this.visibleFor(user).filter(function (p) { return p.kind === 'template'; }); },
     /* Paper Library: saved copies a teacher can reuse later */
     libraryFor: function (user) { return this.visibleFor(user).filter(function (p) { return p.kind === 'library'; }); },
     visibleFor: function (user) {
@@ -273,7 +275,7 @@
     listUsers: function () {
       if (this.mode === 'cloud') return api('listUsers').then(function (r) { if (!r.error) { cloud.users = r.users; r.users.forEach(function (u) { cloud.owners[u.id] = u.name; }); } return r; });
       var papers = Local.papers();
-      return ok({ users: Local.users().map(function (u) { return { id: u.id, name: u.name, email: u.email, role: u.role, academy: u.academy, papers: papers.filter(function (p) { return p.ownerId === u.id && p.kind !== 'library'; }).length }; }) });
+      return ok({ users: Local.users().map(function (u) { return { id: u.id, name: u.name, email: u.email, role: u.role, academy: u.academy, papers: papers.filter(function (p) { return p.ownerId === u.id && !p.kind; }).length }; }) });
     },
     adminSetPassword: function (admin, id, newPw) {
       if (!admin || admin.role !== 'admin') return ok({ error: 'Only an admin can do this.' });

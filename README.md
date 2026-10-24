@@ -83,6 +83,16 @@ or **Other** to type any class. The paper prints it in its own language ("Class:
 Filters, the Paper Library and Reports group and sort by class in this order; older typed values such as "6th", "Grade 8"
 or "FSc Part 1" are recognised as Class 6, Class 8 and 1st Year. The list is `Classes` in `js/translations.js`.
 
+## Templates
+
+- **Class templates**: one ready layout for every class, Nursery to 2nd Year, in English or Urdu — sections, number of
+  questions, marks, time and instructions fitting the level (Nursery/KG 20 marks, Class 1–2 30, Class 3–5 50, Class 6–8 75,
+  Class 9–10 board pattern 75, 1st/2nd Year board pattern 100). Questions are placeholders ("Question 1") to replace.
+  Preview any template, then **Use template** to get a new paper in the builder with the class already set.
+- **My templates**: save any paper as a template (My Papers ⋯ → Save as Template, or the View page). Templates are kept out
+  of My Papers and Reports counts; using one creates a new paper and leaves the template unchanged.
+- The levels are set in `LEVELS` in `js/paper-builder.js`.
+
 ## Paper Library and Reports
 
 - **Paper Library** (sidebar): saved copies of papers to reuse later. Save from My Papers (⋯ → Save to Library) or the View

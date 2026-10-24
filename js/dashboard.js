@@ -71,20 +71,24 @@
   var viewIsLibrary = false;
   function setActive(view) {
     if (!shell) return;
-    var map = { builder: 'papers', view: viewIsLibrary ? 'library' : 'papers' };
+    var map = { builder: 'papers', view: viewIsLibrary === 'template' ? 'templates' : viewIsLibrary ? 'library' : 'papers' };
     shell.querySelectorAll('[data-nav]').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-nav') === (map[view] || view)); });
     shell.querySelector('#page-title').textContent = TITLES[view] || '';
   }
 
   /* ---------- Paper Library helpers ---------- */
   // A library entry is a frozen copy: later edits to the working paper do not change it.
-  function saveToLibrary(p, user) {
+  function saveCopy(p, user, kind) {
     var c = PaperBuilder.clone(p);
-    c.id = PaperBuilder.uid('p'); c.kind = 'library'; c.libraryOf = p.id; c.savedAt = new Date().toISOString(); c.createdAt = c.savedAt;
+    c.id = PaperBuilder.uid('p'); c.kind = kind; c.libraryOf = p.id; c.savedAt = new Date().toISOString(); c.createdAt = c.savedAt;
     c.ownerId = user.role === 'admin' ? p.ownerId : user.id;
-    PMStorage.savePaper(c, user); toast('Saved to Paper Library — “' + (p.settings.title || 'Untitled') + '”');
+    PMStorage.savePaper(c, user);
+    toast((kind === 'template' ? 'Saved as a template — ' : 'Saved to Paper Library — ') + '“' + (p.settings.title || 'Untitled') + '”');
     return c;
   }
+  function saveToLibrary(p, user) { return saveCopy(p, user, 'library'); }
+  // A template keeps the layout (sections, marks, settings) for reuse; use it from Templates → My templates
+  function saveAsTemplate(p, user) { return saveCopy(p, user, 'template'); }
   // "Use this paper": makes a new working copy (the library copy stays as it is)
   function useFromLibrary(p, user, goto) {
     var c = PaperBuilder.clone(p);
@@ -111,9 +115,9 @@
   function card(p, user, showOwner) {
     var owner = showOwner ? PMStorage.ownerName(p.ownerId) : '';
     return '<article class="card" data-id="' + p.id + '"><div class="thumb" data-act="view" title="View paper"><div class="thumb-inner">' + PaperRenderer.renderAuto(p) + '</div></div>' +
-      '<div class="card-body"><h4>' + esc(p.settings.title) + '</h4><div class="meta"><b>Class</b><span>' + esc(p.settings.className || '—') + '</span><b>Subject</b><span>' + esc(p.settings.subject || '—') + '</span><b>Language</b><span>' + langName(p.lang) + (p.autoTranslate ? ' <span class="tag">auto-translated</span>' : '') + '</span>' + (p.kind === 'library' ? '<b>Saved</b><span>' + fmtDate(p.savedAt || p.createdAt) + '</span><b>Questions</b><span>' + countQuestions(p) : '<b>Updated</b><span>' + fmtDate(p.updatedAt)) + '</span>' + (owner ? '<b>Teacher</b><span>' + esc(owner) + '</span>' : '') + '</div></div>' +
-      (p.kind === 'library'
-        ? '<div class="card-actions"><button class="btn small primary" data-act="use">Use this paper</button><button class="btn small" data-act="view">View</button><button class="btn small" data-act="print">Print</button><button class="icon-btn" data-act="more" aria-label="More options" aria-haspopup="true">⋯</button></div></article>'
+      '<div class="card-body"><h4>' + esc(p.settings.title) + '</h4><div class="meta"><b>Class</b><span>' + esc(p.settings.className || '—') + '</span><b>Subject</b><span>' + esc(p.settings.subject || '—') + '</span><b>Language</b><span>' + langName(p.lang) + (p.autoTranslate ? ' <span class="tag">auto-translated</span>' : '') + '</span>' + (p.kind ? '<b>Saved</b><span>' + fmtDate(p.savedAt || p.createdAt) + '</span><b>Questions</b><span>' + countQuestions(p) : '<b>Updated</b><span>' + fmtDate(p.updatedAt)) + '</span>' + (owner ? '<b>Teacher</b><span>' + esc(owner) + '</span>' : '') + '</div></div>' +
+      (p.kind
+        ? '<div class="card-actions"><button class="btn small primary" data-act="use">' + (p.kind === 'template' ? 'Use template' : 'Use this paper') + '</button><button class="btn small" data-act="view">View</button><button class="btn small" data-act="print">Print</button><button class="icon-btn" data-act="more" aria-label="More options" aria-haspopup="true">⋯</button></div></article>'
         : '<div class="card-actions"><button class="btn small" data-act="view">View</button><button class="btn small" data-act="edit">Edit</button><button class="btn small" data-act="pdf">Download PDF</button><button class="btn small" data-act="print">Print</button>' +
           '<button class="icon-btn" data-act="more" aria-label="More options" aria-haspopup="true">⋯</button></div></article>');
   }
@@ -133,17 +137,24 @@
         var old = c.querySelector('.dropdown'); if (old) { old.remove(); return; }
         document.querySelectorAll('.card .dropdown').forEach(function (d) { d.remove(); });
         var dd = document.createElement('div'); dd.className = 'dropdown'; dd.style.cssText = 'right:14px;top:auto;bottom:52px;min-width:160px';
-        dd.innerHTML = p.kind === 'library' ? '<button data-m="pdf">Download PDF</button><button data-m="edit">Edit library copy</button><button data-m="del">Remove from library</button>' : '<button data-m="lib">Save to Library</button><button data-m="dup">Duplicate</button><button data-m="del">Delete</button>';
+        dd.innerHTML = p.kind === 'library' ? '<button data-m="pdf">Download PDF</button><button data-m="edit">Edit library copy</button><button data-m="del">Remove from library</button>'
+          : p.kind === 'template' ? '<button data-m="pdf">Download PDF</button><button data-m="edit">Edit template</button><button data-m="del">Delete template</button>'
+          : '<button data-m="lib">Save to Library</button><button data-m="tpl">Save as Template</button><button data-m="dup">Duplicate</button><button data-m="del">Delete</button>';
         c.querySelector('.card-actions').appendChild(dd);
         dd.onclick = function (ev) {
           var m = ev.target.getAttribute('data-m'); dd.remove();
           if (m === 'lib') { saveToLibrary(p, user); refresh(); }
+          if (m === 'tpl') { saveAsTemplate(p, user); refresh(); }
           if (m === 'pdf') Export.pdf(p);
           if (m === 'edit') goto('builder', id);
           if (m === 'dup') { var cp = PaperBuilder.clone(p); cp.id = PaperBuilder.uid('p'); cp.settings.title += ' (copy)'; cp.createdAt = new Date().toISOString(); cp.ownerId = user.role === 'admin' ? p.ownerId : user.id; PMStorage.savePaper(cp, user); toast('Paper duplicated'); refresh(); }
           if (m === 'del') {
-            var lib = p.kind === 'library';
-            confirmBox(lib ? 'Remove from library?' : 'Delete paper?', lib ? '“' + p.settings.title + '” will be removed from the Paper Library. Papers you already made from it are not affected.' : '“' + p.settings.title + '” will be permanently deleted. This cannot be undone.', lib ? 'Remove' : 'Delete', function () { PMStorage.deletePaper(id, user); toast(lib ? 'Removed from library' : 'Paper deleted'); refresh(); });
+            var lib = p.kind === 'library', tpl = p.kind === 'template';
+            confirmBox(lib ? 'Remove from library?' : tpl ? 'Delete template?' : 'Delete paper?',
+              lib ? '“' + p.settings.title + '” will be removed from the Paper Library. Papers you already made from it are not affected.'
+                : tpl ? 'The template “' + p.settings.title + '” will be deleted. Papers you already made from it are not affected.'
+                : '“' + p.settings.title + '” will be permanently deleted. This cannot be undone.',
+              lib ? 'Remove' : 'Delete', function () { PMStorage.deletePaper(id, user); toast(lib ? 'Removed from library' : tpl ? 'Template deleted' : 'Paper deleted'); refresh(); });
           }
         };
         setTimeout(function () { document.addEventListener('click', function once(ev) { if (!dd.contains(ev.target)) dd.remove(); document.removeEventListener('click', once); }); }, 0);
@@ -224,25 +235,71 @@
     };
   }
 
+  /* ---------- Templates: one per class (Nursery → 2nd Year), my own templates, and sample papers ---------- */
+  var tplState = { cls: '', lang: 'en' };
   function viewTemplates(el, user, goto) {
-    var tpls = [
+    var mine = PMStorage.templatesFor(user), admin = user.role === 'admin';
+    var samples = [
       { name: 'Blank English paper', desc: 'Empty paper, left-to-right.', make: function () { return PaperBuilder.newPaper(user.id, 'en'); } },
       { name: 'Blank Urdu paper', desc: 'Empty paper, right-to-left.', make: function () { return PaperBuilder.newPaper(user.id, 'ur'); } },
-      { name: 'English sample (Grade 6)', desc: 'Fill blanks, matching, sentences, rearrange, short answers.', make: function () { return PaperBuilder.sampleEnglish(user.id); } },
-      { name: 'Mathematics sample (Grade 8)', desc: 'Fractions, roots, powers, equations and symbols.', make: function () { return PaperBuilder.sampleMath(user.id); } },
-      { name: 'Urdu Science sample (Grade 6)', desc: 'Urdu MCQs, table and written answer.', make: function () { return PaperBuilder.sampleUrdu(user.id); } }
+      { name: 'English sample (Class 6)', desc: 'Fill blanks, matching, sentences, rearrange, short answers.', make: function () { return PaperBuilder.sampleEnglish(user.id); } },
+      { name: 'Mathematics sample (Class 8)', desc: 'Fractions, roots, powers, equations and symbols.', make: function () { return PaperBuilder.sampleMath(user.id); } },
+      { name: 'Urdu Science sample (Class 6)', desc: 'Urdu MCQs, table and written answer.', make: function () { return PaperBuilder.sampleUrdu(user.id); } }
     ];
-    el.innerHTML = '<p class="muted">Start from a template. A copy is saved to your papers.</p><div class="grid">' + tpls.map(function (t, i) { return '<div class="card"><div class="card-body"><h4>' + t.name + '</h4><p class="muted" style="margin:0 0 10px">' + t.desc + '</p></div><div class="card-actions"><button class="btn small primary" data-i="' + i + '">Use template</button></div></div>'; }).join('') + '</div>';
-    el.querySelectorAll('[data-i]').forEach(function (b) { b.onclick = function () { var p = tpls[+b.getAttribute('data-i')].make(); p.id = PaperBuilder.uid('p'); p.ownerId = user.id; if (/sample/i.test(p.settings.title)) p.settings.title += ' (copy)'; PMStorage.savePaper(p, user); goto('builder', p.id); }; });
+    var classOpts = '<option value="">All classes</option>' + Classes.list.map(function (c) { return '<option value="' + c.v + '"' + (c.v === tplState.cls ? ' selected' : '') + '>' + esc(c.label) + '</option>'; }).join('');
+    el.innerHTML = '<div class="lib-intro"><div><h2>Templates</h2><p class="muted">Start a paper from a ready layout. <b>Use template</b> makes a new paper for you to edit — the template itself never changes. Save your own papers as templates from <b>My Papers</b> (⋯ → Save as Template).</p></div></div>' +
+      '<div class="toolbar"><label class="check">Class <select class="inp" id="t-c" aria-label="Filter templates by class">' + classOpts + '</select></label>' +
+      '<label class="check">Class templates in <select class="inp" id="t-l" aria-label="Language of class templates"><option value="en"' + (tplState.lang === 'en' ? ' selected' : '') + '>English</option><option value="ur"' + (tplState.lang === 'ur' ? ' selected' : '') + '>اردو</option></select></label></div>' +
+      '<div id="tpl"></div>';
+    var box = el.querySelector('#tpl');
+    function draw() {
+      var cls = tplState.cls, lang = tplState.lang, h = '';
+      var my = mine.filter(function (p) { return !cls || classKey(p.settings.className) === cls; });
+      if (mine.length) {
+        h += '<section class="lib-group"><h3>My templates <span class="muted">· ' + my.length + '</span></h3>' +
+          (my.length ? '<div class="grid">' + my.sort(function (a, b) { return classSort(classKey(a.settings.className), classKey(b.settings.className)); }).map(function (p) { return card(p, user, admin); }).join('') + '</div>' : '<p class="muted">None for this class yet.</p>') + '</section>';
+      }
+      var list = Classes.list.filter(function (c) { return !cls || c.v === cls; });
+      h += '<section class="lib-group"><h3>Class templates <span class="muted">· Nursery to 2nd Year</span></h3><div class="grid">' + list.map(function (c) {
+        var info = PaperBuilder.templateInfo(c.v), demo = PaperBuilder.classTemplate(c.v, lang, user.id);
+        return '<article class="card"><div class="thumb" data-tpl-view="' + c.v + '" title="Preview"><div class="thumb-inner">' + PaperRenderer.render(demo) + '</div></div>' +
+          '<div class="card-body"><h4>' + esc(c.label) + '</h4><div class="meta"><b>Marks</b><span>' + info.marks + '</span><b>Time</b><span>' + esc(info.time) + '</span><b>Sections</b><span>' + info.sections + (info.board ? ' (board pattern)' : '') + '</span><b>Questions</b><span>' + info.questions + '</span><b>Language</b><span>' + (lang === 'ur' ? 'Urdu' : 'English') + '</span></div></div>' +
+          '<div class="card-actions"><button class="btn small primary" data-tpl-use="' + c.v + '">Use template</button><button class="btn small" data-tpl-view="' + c.v + '">Preview</button></div></article>';
+      }).join('') + '</div></section>';
+      if (!cls) h += '<section class="lib-group"><h3>Sample papers</h3><div class="grid">' + samples.map(function (t, i) { return '<div class="card"><div class="card-body"><h4>' + t.name + '</h4><p class="muted" style="margin:0 0 10px">' + t.desc + '</p></div><div class="card-actions"><button class="btn small primary" data-i="' + i + '">Use template</button></div></div>'; }).join('') + '</div></section>';
+      box.innerHTML = h;
+      box.querySelectorAll('[data-i]').forEach(function (b) { b.onclick = function () { var p = samples[+b.getAttribute('data-i')].make(); p.id = PaperBuilder.uid('p'); p.ownerId = user.id; PMStorage.savePaper(p, user); goto('builder', p.id); }; });
+      box.querySelectorAll('[data-tpl-use]').forEach(function (b) { b.onclick = function () { useClassTemplate(b.getAttribute('data-tpl-use')); }; });
+      box.querySelectorAll('[data-tpl-view]').forEach(function (b) {
+        b.onclick = function () {
+          var c = b.getAttribute('data-tpl-view'), demo = PaperBuilder.classTemplate(c, tplState.lang, user.id);
+          modal('<div class="tpl-prev-head"><h3>' + esc(Classes.label(c)) + '</h3><div><button class="btn" data-no>Close</button> <button class="btn primary" data-ok>Use template</button></div></div><div class="view-stage tpl-prev"><div class="paper-wrap">' + PaperRenderer.render(demo) + '</div></div>', function (m, close) {
+            m.classList.add('wide');
+            m.querySelector('[data-no]').onclick = close;
+            m.querySelector('[data-ok]').onclick = function () { close(); useClassTemplate(c); };
+            PaperRenderer.fit();
+          });
+        };
+      });
+    }
+    function useClassTemplate(c) {
+      var p = PaperBuilder.classTemplate(c, tplState.lang, user.id);
+      p.settings.title = p.settings.title.replace(/ — (Exam Paper Template|پرچہ ٹیمپلیٹ)$/, tplState.lang === 'ur' ? ' — نیا پرچہ' : ' — New Paper');
+      PMStorage.savePaper(p, user); toast('New ' + Classes.label(c).replace(/ \(.*\)$/, '') + ' paper created — replace the placeholder questions'); goto('builder', p.id);
+    }
+    el.querySelector('#t-c').onchange = function (e) { tplState.cls = e.target.value; draw(); };
+    el.querySelector('#t-l').onchange = function (e) { tplState.lang = e.target.value; draw(); };
+    bindCards(box, user, goto, function () { viewTemplates(el, user, goto); });
+    draw();
   }
 
   function viewPaper(el, user, goto, id) {
     var p = PMStorage.getPaper(id, user);
     if (!p) { el.innerHTML = '<div class="empty"><h4>Paper not found</h4><p class="muted">It may have been deleted, or you do not have access.</p></div>'; return; }
     el.style.maxWidth = 'none';
-    var lib = p.kind === 'library';
-    el.innerHTML = '<div class="toolbar"><button class="btn" data-go="' + (lib ? 'library' : 'papers') + '">← Back</button><span style="flex:1"></span>' +
-      (lib ? '<button class="btn primary" id="v-use">Use this paper</button>' : '<button class="btn" id="v-lib">Save to Library</button><button class="btn" id="v-edit">Edit</button>') +
+    var lib = !!p.kind, back = p.kind === 'template' ? 'templates' : lib ? 'library' : 'papers';
+    el.innerHTML = '<div class="toolbar"><button class="btn" data-go="' + back + '">← Back</button><span style="flex:1"></span>' +
+      (lib ? '<button class="btn primary" id="v-use">' + (p.kind === 'template' ? 'Use template' : 'Use this paper') + '</button>' : '<button class="btn" id="v-lib">Save to Library</button><button class="btn" id="v-tpl">Save as Template</button><button class="btn" id="v-edit">Edit</button>') +
       '<button class="btn" id="v-print">Print</button><button class="btn' + (lib ? '' : ' primary') + '" id="v-pdf">Download PDF</button></div><div class="view-stage"><div id="v-note"></div><div class="paper-wrap" id="v-paper"></div></div>';
     var paperEl = el.querySelector('#v-paper'), note = el.querySelector('#v-note');
     function draw() {
@@ -254,11 +311,12 @@
       if (todo.length) Translator.fetch(todo).then(function () { if (paperEl.isConnected) draw(); });
     }
     draw();
-    el.querySelector('[data-go]').onclick = function () { goto(lib ? 'library' : 'papers'); };
+    el.querySelector('[data-go]').onclick = function () { goto(back); };
     if (lib) el.querySelector('#v-use').onclick = function () { useFromLibrary(p, user, goto); };
     else {
       el.querySelector('#v-edit').onclick = function () { goto('builder', id); };
       el.querySelector('#v-lib').onclick = function () { saveToLibrary(p, user); };
+      el.querySelector('#v-tpl').onclick = function () { saveAsTemplate(p, user); };
     }
     el.querySelector('#v-print').onclick = function () { Export.print(p); };
     el.querySelector('#v-pdf').onclick = function () { Export.pdf(p); };
@@ -481,7 +539,7 @@
   function render(user, view, id, goto, refreshUser) {
     var el = shell.querySelector('#view'); el.style.maxWidth = '';
     if (builderHandle) { builderHandle.flush(); builderHandle = null; }
-    viewIsLibrary = view === 'view' && (PMStorage.getPaper(id, user) || {}).kind === 'library';
+    viewIsLibrary = view === 'view' ? ((PMStorage.getPaper(id, user) || {}).kind || false) : false;
     setActive(view);
     var main = shell.querySelector('.main'); main.classList.remove('is-builder');
     if (view === 'builder') {

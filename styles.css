@@ -483,3 +483,7 @@ html { transition: none; }
 @media (max-width: 800px) { .rep-grid { grid-template-columns: 1fr; } .lib-intro { flex-direction: column; align-items: flex-start; } .lib-count { text-align: left; } }
 @media (max-width: 420px) { .rep-stats { grid-template-columns: repeat(2, 1fr); } .hbar { grid-template-columns: 38% 1fr 30px; } }
 .field input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), .field select { min-height: 40px; }
+/* ---------- Templates ---------- */
+.tpl-prev-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.tpl-prev { max-height: 70vh; border-radius: var(--radius); }
+.modal.wide .view-stage { padding: 12px; }
