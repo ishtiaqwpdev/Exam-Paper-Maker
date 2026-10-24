@@ -52,7 +52,7 @@
         '<p class="muted auth-note">Your papers are private to your account.</p>' +
         '<button class="btn primary auth-submit">Create Account</button></form>';
     var note = PMStorage.isCloud()
-      ? '<p class="db-note ok">✓ Connected to the database — your account and papers are saved online and work on any device.</p>'
+      ? ''                                                                 // all good: no message needed
       : location.protocol === 'file:' ? '<p class="muted local-note">Offline demo: accounts and papers are kept only in this browser.</p>'
       : PMStorage.dbProblem ? '<p class="db-note warn" role="alert">⚠ The database is set up but could not be reached, so accounts are saved only in this browser for now.<br><small>' + esc(PMStorage.dbProblem) + '</small></p>'
       : '<p class="db-note warn" role="alert">⚠ No database connected yet — accounts and papers are saved only in this browser on this device. To save them online: Vercel → Storage → Create Database (Neon) → Connect → Redeploy.</p>';
