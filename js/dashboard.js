@@ -46,6 +46,7 @@
       '<div class="main"><header class="topbar"><div style="display:flex;align-items:center;gap:10px"><button class="icon-btn menu-toggle" id="menu-btn" aria-label="Open menu">☰</button><h1 id="page-title"></h1></div>' +
       '<div class="right">' + Theme.button('theme-btn') + '<button class="icon-btn" id="notif-btn" aria-label="Notifications" style="position:relative">🔔<span class="badge-dot"></span></button>' +
       '<button class="profile-btn" id="prof-btn"><span class="avatar">' + esc(initials(user.name)) + '</span><span class="pname">' + esc(user.name) + '</span> ▾</button></div></header>' +
+      (PMStorage.isCloud() || location.protocol === 'file:' ? '' : '<div class="db-strip" role="status">⚠ Saved only in this browser — the database is not connected' + (PMStorage.dbProblem ? ' (it could not be reached)' : '') + '. Other devices will not see these accounts or papers.</div>') +
       '<main class="content" id="view"></main></div></div>';
     shell = root; Theme.refresh();
     var sb = root.querySelector('#sidebar'), sc = root.querySelector('#scrim');

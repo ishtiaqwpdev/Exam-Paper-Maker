@@ -488,3 +488,11 @@ html { transition: none; }
 .tpl-prev { max-height: 70vh; border-radius: var(--radius); }
 .modal.wide .view-stage { padding: 12px; }
 .tpl-h { font-size: 18px; margin: 6px 0 14px; }
+
+/* ---------- where data is saved ---------- */
+.db-note { font-size: 13.5px; line-height: 1.45; border-radius: var(--radius-sm); padding: 10px 12px; margin: 18px 0 0; text-align: left; }
+.db-note.ok { border: 1px solid var(--color-border-strong); color: var(--color-muted); }
+.db-note.warn { border: 1.5px solid var(--ink); font-weight: 600; }
+.db-note small { font-weight: 400; color: var(--color-muted); }
+.db-strip { font-size: 13px; font-weight: 600; padding: 8px 28px; border-bottom: 1px solid var(--color-border-strong); background: var(--color-soft); }
+@media (max-width: 800px) { .db-strip { padding: 8px 14px; } }

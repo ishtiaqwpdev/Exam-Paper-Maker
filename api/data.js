@@ -62,7 +62,15 @@ async function upsertPaper(me, p) {
 }
 
 const actions = {
-  async status() { return { db: DB.configured(), email: !!(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) }; },
+  // Tells the app whether accounts can be saved online — and actually talks to the database to be sure.
+  async status() {
+    const out = { db: DB.configured(), dbOk: false, email: !!(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) };
+    if (out.db) {
+      try { await DB.query('SELECT 1'); out.dbOk = true; }
+      catch (e) { out.dbError = String((e && e.message) || 'connection failed').replace(/postgres(ql)?:\/\/[^\s]+/gi, '[database url]').slice(0, 160); console.error('db status failed:', e && e.message); }
+    }
+    return out;
+  },
 
   async register(b) {
     const name = str(b.name, 80), email = str(b.email, 254).toLowerCase(), academy = str(b.academy, 120), pw = String(b.password || '');

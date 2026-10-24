@@ -147,7 +147,9 @@
       return fetch('/api/data?action=status', ctl ? { signal: ctl.signal } : {}).then(function (r) { return r.ok ? r.json() : null; }, function () { return null; })
         .then(function (st) {
           clearTimeout(t);
-          if (!st || !st.db) { self.mode = 'local'; Local.seed(); return 'local'; }
+          self.serverStatus = st;
+          // no database, or it cannot be reached: keep working in this browser and say so clearly
+          if (!st || !st.db || st.dbOk === false) { self.mode = 'local'; self.dbProblem = st && st.db ? (st.dbError || 'The database could not be reached.') : ''; Local.seed(); return 'local'; }
           self.mode = 'cloud'; self.emailReady = !!st.email;
           cloud.token = readToken(); cloud.remember = !!read(K.token, null);
           if (!cloud.token) return 'cloud';
