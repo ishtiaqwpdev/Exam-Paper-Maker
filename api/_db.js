@@ -3,7 +3,13 @@
    Tables are created automatically on first use. */
 let pool = null, ready = null, override = null;
 
-function url() { return process.env.DATABASE_URL || process.env.POSTGRES_URL || ''; }
+// Vercel/Neon may add a prefix (e.g. STORAGE_DATABASE_URL), so accept any *_DATABASE_URL / *_POSTGRES_URL too.
+function url() {
+  const env = process.env;
+  if (env.DATABASE_URL || env.POSTGRES_URL) return env.DATABASE_URL || env.POSTGRES_URL;
+  const key = Object.keys(env).find(k => /(^|_)DATABASE_URL$/.test(k) && env[k]) || Object.keys(env).find(k => /(^|_)POSTGRES_URL$/.test(k) && env[k]);
+  return key ? env[key] : '';
+}
 function configured() { return !!(override || url()); }
 
 function getPool() {
@@ -44,4 +50,4 @@ async function query(text, params) {
   return r.rows;
 }
 
-module.exports = { query, configured, _setTestDb(db) { override = db; ready = null; } };
+module.exports = { url, query, configured, _setTestDb(db) { override = db; ready = null; } };

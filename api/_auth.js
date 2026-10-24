@@ -2,7 +2,7 @@
 const crypto = require('crypto');
 
 function secret() {
-  const s = process.env.AUTH_SECRET || ('pm-auth:' + (process.env.DATABASE_URL || process.env.POSTGRES_URL || 'test'));
+  const s = process.env.AUTH_SECRET || ('pm-auth:' + (require('./_db').url() || 'test'));
   return crypto.createHash('sha256').update(s).digest();
 }
 const b64u = b => Buffer.from(b).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
