@@ -573,5 +573,23 @@
     }
   }
 
-  window.Dashboard = { toast: toast, mountShell: mountShell, render: render, modal: modal, confirm: confirmBox };
+  /* "Save as Template" with a name (used by the Paper Builder toolbar) */
+  function askSaveTemplate(p, user) {
+    var cls = Classes.key(p.settings.className);
+    modal('<h3>Save as template</h3><p class="muted">A copy of this paper\'s layout — settings, sections, questions and marks — is kept in <b>Templates → My templates</b>' + (cls !== 'No class' ? ' under <b>' + esc(cls === 'KG' ? 'KG / Prep' : cls) + '</b>' : '') + '. Later changes to this paper do not change the template.</p><div id="st-err"></div>' +
+      '<div class="field"><label for="st-name">Template name</label><input id="st-name" dir="auto" value="' + esc(p.settings.title || 'My template') + '"></div>' +
+      '<div class="actions"><button class="btn" data-no>Cancel</button><button class="btn primary" data-ok>Save template</button></div>', function (m, close) {
+        var inp = m.querySelector('#st-name'); inp.focus(); inp.select();
+        m.querySelector('[data-no]').onclick = close;
+        function go() {
+          var name = inp.value.trim(); if (!name) { m.querySelector('#st-err').innerHTML = '<div class="form-error" role="alert">Please give the template a name.</div>'; return; }
+          var c = PaperBuilder.clone(p); c.settings.title = name;
+          close(); saveCopy(c, user, 'template');
+        }
+        m.querySelector('[data-ok]').onclick = go;
+        inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+      });
+  }
+
+  window.Dashboard = { askSaveTemplate: askSaveTemplate, toast: toast, mountShell: mountShell, render: render, modal: modal, confirm: confirmBox };
 })();

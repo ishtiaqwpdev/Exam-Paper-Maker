@@ -392,6 +392,7 @@
         '<span class="tr-state" id="b-tr-state" aria-live="polite"></span>' +
         '<span class="grow"></span><span class="save-state" id="b-state">All changes saved</span>' +
         '<button class="btn small" id="b-save">Save</button>' +
+        (paper.kind ? '' : '<button class="btn small" id="b-tpl" title="Keep this paper\'s layout in Templates → My templates">Save as Template</button>') +
         '<button class="btn small" id="b-print">Print</button>' +
         '<button class="btn small primary" id="b-pdf">Download PDF</button>' +
       '</div>' +
@@ -557,6 +558,8 @@
       if (trBox.checked) Dashboard.toast('Auto-translate on: Urdu text shows in English, English text shows in Urdu.');
     });
     root.querySelector('#b-save').addEventListener('click', function () { save(true); });
+    var tplBtn = root.querySelector('#b-tpl');
+    if (tplBtn) tplBtn.addEventListener('click', function () { save(false); Dashboard.askSaveTemplate(paper, user); });
     root.querySelector('#b-print').addEventListener('click', function () { save(false); Export.print(paper); });
     root.querySelector('#b-pdf').addEventListener('click', function () { save(false); Export.pdf(paper); });
     root.querySelector('#b-back').addEventListener('click', function () { if (dirty) save(false); opts.onClose(); });
