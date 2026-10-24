@@ -76,6 +76,15 @@ To test locally with the functions, run `npx vercel dev`.
 - Print prints only the paper (A4). Download PDF uses html2pdf.js loaded from a CDN when online; if it cannot load,
   the print dialog opens so you can choose "Save as PDF". Everything else works fully offline.
 
+## Paper Library and Reports
+
+- **Paper Library** (sidebar): saved copies of papers to reuse later. Save from My Papers (⋯ → Save to Library) or the View
+  page. A library copy never changes when the original is edited. **Use this paper** makes a new editable copy. Grouped by
+  class (6, 6th and "Grade 6" count as Class 6), with search and class/subject filters. Admins see every teacher's library.
+- **Reports** (sidebar): papers, classes, subjects, questions, library copies and (admin) teachers; charts for papers by
+  class, by subject, by language, per month and question types; a class × subject table; for admins a teachers table
+  (papers, questions, classes, subjects, last active). **Download report (CSV)** exports everything for Excel.
+
 ## Mathematics support
 
 A built-in, offline equation engine (`js/math.js`, no external library) renders maths the same way in the live preview,

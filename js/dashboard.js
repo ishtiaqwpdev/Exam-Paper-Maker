@@ -29,15 +29,16 @@
   function initials(n) { return (n || '?').split(/\s+/).map(function (x) { return x[0]; }).slice(0, 2).join('').toUpperCase(); }
 
   var NAV = [
-    ['dashboard', '🏠', 'Dashboard'], ['papers', '📄', 'My Papers'], ['new', '➕', 'Create New Paper'], ['templates', '🗂', 'Templates'], ['sep'],
+    ['dashboard', '🏠', 'Dashboard'], ['papers', '📄', 'My Papers'], ['new', '➕', 'Create New Paper'], ['templates', '🗂', 'Templates'],
+    ['library', '📚', 'Paper Library'], ['reports', '📊', 'Reports'], ['sep'],
     ['profile', '👤', 'Profile'], ['settings', '⚙', 'Account Settings'], ['sep'], ['logout', '↩', 'Logout']
   ];
-  var ADMIN_NAV = [['admin-teachers', '🎓', 'All Teachers'], ['admin-papers', '📚', 'All Papers'], ['admin-settings', '🛠', 'System Settings']];
-  var TITLES = { dashboard: 'Dashboard', papers: 'My Papers', new: 'Create New Paper', templates: 'Templates', profile: 'Profile', settings: 'Account Settings', builder: 'Paper Builder', view: 'View Paper', 'admin-teachers': 'All Teachers', 'admin-papers': 'All Papers', 'admin-settings': 'System Settings' };
+  var ADMIN_NAV = [['admin-teachers', '🎓', 'All Teachers'], ['admin-papers', '🗃', 'All Papers'], ['admin-settings', '🛠', 'System Settings']];
+  var TITLES = { dashboard: 'Dashboard', papers: 'My Papers', new: 'Create New Paper', templates: 'Templates', profile: 'Profile', settings: 'Account Settings', builder: 'Paper Builder', view: 'View Paper', library: 'Paper Library', reports: 'Reports', 'admin-teachers': 'All Teachers', 'admin-papers': 'All Papers', 'admin-settings': 'System Settings' };
 
   function mountShell(user, goto) {
     var root = document.getElementById('root');
-    var items = NAV.slice(); if (user.role === 'admin') items = NAV.slice(0, 4).concat([['sep']], ADMIN_NAV, NAV.slice(4));
+    var items = NAV.slice(); if (user.role === 'admin') items = NAV.slice(0, 6).concat([['sep']], ADMIN_NAV, NAV.slice(6));
     root.innerHTML =
       '<div class="app"><aside class="sidebar" id="sidebar"><div class="brand"><img class="brand-logo" src="assets/logo-mark.png" width="52" height="52" alt=""> Exam Paper Maker</div><ul class="nav">' +
       items.map(function (n) { return n[0] === 'sep' ? '<li class="sep" role="separator"></li>' : '<li><button data-nav="' + n[0] + '"><span class="ico" aria-hidden="true">' + n[1] + '</span>' + n[2] + '</button></li>'; }).join('') +
@@ -67,20 +68,59 @@
     };
   }
 
+  var viewIsLibrary = false;
   function setActive(view) {
     if (!shell) return;
-    var map = { builder: 'papers', view: 'papers' };
+    var map = { builder: 'papers', view: viewIsLibrary ? 'library' : 'papers' };
     shell.querySelectorAll('[data-nav]').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-nav') === (map[view] || view)); });
     shell.querySelector('#page-title').textContent = TITLES[view] || '';
+  }
+
+  /* ---------- Paper Library helpers ---------- */
+  // A library entry is a frozen copy: later edits to the working paper do not change it.
+  function saveToLibrary(p, user) {
+    var c = PaperBuilder.clone(p);
+    c.id = PaperBuilder.uid('p'); c.kind = 'library'; c.libraryOf = p.id; c.savedAt = new Date().toISOString(); c.createdAt = c.savedAt;
+    c.ownerId = user.role === 'admin' ? p.ownerId : user.id;
+    PMStorage.savePaper(c, user); toast('Saved to Paper Library — “' + (p.settings.title || 'Untitled') + '”');
+    return c;
+  }
+  // "Use this paper": makes a new working copy (the library copy stays as it is)
+  function useFromLibrary(p, user, goto) {
+    var c = PaperBuilder.clone(p);
+    delete c.kind; delete c.libraryOf; delete c.savedAt;
+    c.id = PaperBuilder.uid('p'); c.ownerId = user.id; c.createdAt = new Date().toISOString();
+    PMStorage.savePaper(c, user); toast('A new copy is ready to edit'); goto('builder', c.id);
+  }
+  function classKey(c) {
+    var t = String(c || '').trim(); if (!t) return 'No class';
+    var m = /\d+/.exec(t); return m ? 'Class ' + parseInt(m[0], 10) : t.replace(/\s+/g, ' ');
+  }
+  function classSort(a, b) {
+    var na = /^Class (\d+)$/.exec(a), nb = /^Class (\d+)$/.exec(b);
+    if (na && nb) return na[1] - nb[1]; if (na) return -1; if (nb) return 1;
+    if (a === 'No class') return 1; if (b === 'No class') return -1; return a.localeCompare(b);
+  }
+  function countQuestions(p) {
+    return (p.sections || []).reduce(function (n, s) {
+      if (s.enabled === false) return n;
+      if (s.type === 'mcq') return n + (s.questions || []).length;
+      if (s.type === 'match') return n + (s.left || []).filter(Boolean).length;
+      if (s.type === 'table') return n + Math.max((s.rows || []).length - (s.header ? 1 : 0), 0);
+      if (s.type === 'instr' || s.type === 'custom') return n;
+      return n + (s.items || []).filter(function (x) { return x && (typeof x === 'string' ? x.trim() : (x.text || x.eq)); }).length;
+    }, 0);
   }
 
   /* ---------- paper cards ---------- */
   function card(p, user, showOwner) {
     var owner = showOwner ? PMStorage.ownerName(p.ownerId) : '';
     return '<article class="card" data-id="' + p.id + '"><div class="thumb" data-act="view" title="View paper"><div class="thumb-inner">' + PaperRenderer.renderAuto(p) + '</div></div>' +
-      '<div class="card-body"><h4>' + esc(p.settings.title) + '</h4><div class="meta"><b>Class</b><span>' + esc(p.settings.className || '—') + '</span><b>Subject</b><span>' + esc(p.settings.subject || '—') + '</span><b>Language</b><span>' + langName(p.lang) + (p.autoTranslate ? ' <span class="tag">auto-translated</span>' : '') + '</span><b>Updated</b><span>' + fmtDate(p.updatedAt) + '</span>' + (owner ? '<b>Teacher</b><span>' + esc(owner) + '</span>' : '') + '</div></div>' +
-      '<div class="card-actions"><button class="btn small" data-act="view">View</button><button class="btn small" data-act="edit">Edit</button><button class="btn small" data-act="pdf">Download PDF</button><button class="btn small" data-act="print">Print</button>' +
-      '<button class="icon-btn" data-act="more" aria-label="More options" aria-haspopup="true">⋯</button></div></article>';
+      '<div class="card-body"><h4>' + esc(p.settings.title) + '</h4><div class="meta"><b>Class</b><span>' + esc(p.settings.className || '—') + '</span><b>Subject</b><span>' + esc(p.settings.subject || '—') + '</span><b>Language</b><span>' + langName(p.lang) + (p.autoTranslate ? ' <span class="tag">auto-translated</span>' : '') + '</span>' + (p.kind === 'library' ? '<b>Saved</b><span>' + fmtDate(p.savedAt || p.createdAt) + '</span><b>Questions</b><span>' + countQuestions(p) : '<b>Updated</b><span>' + fmtDate(p.updatedAt)) + '</span>' + (owner ? '<b>Teacher</b><span>' + esc(owner) + '</span>' : '') + '</div></div>' +
+      (p.kind === 'library'
+        ? '<div class="card-actions"><button class="btn small primary" data-act="use">Use this paper</button><button class="btn small" data-act="view">View</button><button class="btn small" data-act="print">Print</button><button class="icon-btn" data-act="more" aria-label="More options" aria-haspopup="true">⋯</button></div></article>'
+        : '<div class="card-actions"><button class="btn small" data-act="view">View</button><button class="btn small" data-act="edit">Edit</button><button class="btn small" data-act="pdf">Download PDF</button><button class="btn small" data-act="print">Print</button>' +
+          '<button class="icon-btn" data-act="more" aria-label="More options" aria-haspopup="true">⋯</button></div></article>');
   }
 
   function bindCards(container, user, goto, refresh) {
@@ -91,18 +131,25 @@
       var p = PMStorage.getPaper(id, user); if (!p) { toast('Paper not found or no permission.'); return; }
       if (act === 'view') goto('view', id);
       else if (act === 'edit') goto('builder', id);
+      else if (act === 'use') useFromLibrary(p, user, goto);
       else if (act === 'print') Export.print(p);
       else if (act === 'pdf') Export.pdf(p);
       else if (act === 'more') {
         var old = c.querySelector('.dropdown'); if (old) { old.remove(); return; }
         document.querySelectorAll('.card .dropdown').forEach(function (d) { d.remove(); });
         var dd = document.createElement('div'); dd.className = 'dropdown'; dd.style.cssText = 'right:14px;top:auto;bottom:52px;min-width:160px';
-        dd.innerHTML = '<button data-m="dup">Duplicate</button><button data-m="del">Delete</button>';
+        dd.innerHTML = p.kind === 'library' ? '<button data-m="pdf">Download PDF</button><button data-m="edit">Edit library copy</button><button data-m="del">Remove from library</button>' : '<button data-m="lib">Save to Library</button><button data-m="dup">Duplicate</button><button data-m="del">Delete</button>';
         c.querySelector('.card-actions').appendChild(dd);
         dd.onclick = function (ev) {
           var m = ev.target.getAttribute('data-m'); dd.remove();
+          if (m === 'lib') { saveToLibrary(p, user); refresh(); }
+          if (m === 'pdf') Export.pdf(p);
+          if (m === 'edit') goto('builder', id);
           if (m === 'dup') { var cp = PaperBuilder.clone(p); cp.id = PaperBuilder.uid('p'); cp.settings.title += ' (copy)'; cp.createdAt = new Date().toISOString(); cp.ownerId = user.role === 'admin' ? p.ownerId : user.id; PMStorage.savePaper(cp, user); toast('Paper duplicated'); refresh(); }
-          if (m === 'del') confirmBox('Delete paper?', '“' + p.settings.title + '” will be permanently deleted. This cannot be undone.', 'Delete', function () { PMStorage.deletePaper(id, user); toast('Paper deleted'); refresh(); });
+          if (m === 'del') {
+            var lib = p.kind === 'library';
+            confirmBox(lib ? 'Remove from library?' : 'Delete paper?', lib ? '“' + p.settings.title + '” will be removed from the Paper Library. Papers you already made from it are not affected.' : '“' + p.settings.title + '” will be permanently deleted. This cannot be undone.', lib ? 'Remove' : 'Delete', function () { PMStorage.deletePaper(id, user); toast(lib ? 'Removed from library' : 'Paper deleted'); refresh(); });
+          }
         };
         setTimeout(function () { document.addEventListener('click', function once(ev) { if (!dd.contains(ev.target)) dd.remove(); document.removeEventListener('click', once); }); }, 0);
       }
@@ -187,7 +234,10 @@
     var p = PMStorage.getPaper(id, user);
     if (!p) { el.innerHTML = '<div class="empty"><h4>Paper not found</h4><p class="muted">It may have been deleted, or you do not have access.</p></div>'; return; }
     el.style.maxWidth = 'none';
-    el.innerHTML = '<div class="toolbar"><button class="btn" data-go="papers">← Back</button><span style="flex:1"></span><button class="btn" id="v-edit">Edit</button><button class="btn" id="v-print">Print</button><button class="btn primary" id="v-pdf">Download PDF</button></div><div class="view-stage"><div id="v-note"></div><div class="paper-wrap" id="v-paper"></div></div>';
+    var lib = p.kind === 'library';
+    el.innerHTML = '<div class="toolbar"><button class="btn" data-go="' + (lib ? 'library' : 'papers') + '">← Back</button><span style="flex:1"></span>' +
+      (lib ? '<button class="btn primary" id="v-use">Use this paper</button>' : '<button class="btn" id="v-lib">Save to Library</button><button class="btn" id="v-edit">Edit</button>') +
+      '<button class="btn" id="v-print">Print</button><button class="btn' + (lib ? '' : ' primary') + '" id="v-pdf">Download PDF</button></div><div class="view-stage"><div id="v-note"></div><div class="paper-wrap" id="v-paper"></div></div>';
     var paperEl = el.querySelector('#v-paper'), note = el.querySelector('#v-note');
     function draw() {
       if (!p.autoTranslate || !window.Translator) { paperEl.innerHTML = PaperRenderer.render(p); return; }
@@ -198,8 +248,12 @@
       if (todo.length) Translator.fetch(todo).then(function () { if (paperEl.isConnected) draw(); });
     }
     draw();
-    el.querySelector('[data-go]').onclick = function () { goto('papers'); };
-    el.querySelector('#v-edit').onclick = function () { goto('builder', id); };
+    el.querySelector('[data-go]').onclick = function () { goto(lib ? 'library' : 'papers'); };
+    if (lib) el.querySelector('#v-use').onclick = function () { useFromLibrary(p, user, goto); };
+    else {
+      el.querySelector('#v-edit').onclick = function () { goto('builder', id); };
+      el.querySelector('#v-lib').onclick = function () { saveToLibrary(p, user); };
+    }
     el.querySelector('#v-print').onclick = function () { Export.print(p); };
     el.querySelector('#v-pdf').onclick = function () { Export.pdf(p); };
   }
@@ -300,10 +354,128 @@
     el.innerHTML = '<div class="panel form-card"><h3 style="margin-bottom:8px">System settings (preview)</h3><p class="muted">In the full product the admin will configure available section types, languages and fonts here. In this prototype fonts are changed through the CSS variables <code>--font-english</code> and <code>--font-urdu</code> at the top of <code>styles.css</code>.</p><p><b>Section types:</b> ' + PaperBuilder.TYPES.map(function (t) { return '<span class="tag">' + Translations.get('en').types[t] + '</span>'; }).join(' ') + '</p><p><b>Languages:</b> <span class="tag">English (LTR)</span> <span class="tag">اردو (RTL)</span></p></div>';
   }
 
+  /* ---------- Paper Library ---------- */
+  var libState = { q: '', cls: '', subj: '' };
+  function viewLibrary(el, user, goto) {
+    var all = PMStorage.libraryFor(user), admin = user.role === 'admin';
+    var classes = uniq(all.map(function (p) { return classKey(p.settings.className); })).sort(classSort), subs = uniq(all.map(function (p) { return p.settings.subject; }));
+    el.innerHTML = '<div class="lib-intro"><div><h2>Paper Library</h2><p class="muted">Your saved papers, ready to reuse. <b>Use this paper</b> makes a fresh copy to edit — the library copy never changes. Save a paper here from <b>My Papers</b> (⋯ → Save to Library) or from the View page.</p></div><div class="lib-count"><b>' + all.length + '</b><span>saved paper' + (all.length === 1 ? '' : 's') + '</span></div></div>' +
+      (all.length ? '<div class="toolbar"><input class="inp search" id="l-q" type="search" placeholder="Search the library…" aria-label="Search the library" value="' + esc(libState.q) + '">' +
+        '<select class="inp" id="l-c" aria-label="Filter by class">' + options(classes, libState.cls, 'All classes') + '</select>' +
+        '<select class="inp" id="l-s" aria-label="Filter by subject">' + options(subs, libState.subj, 'All subjects') + '</select></div>' : '') +
+      '<div id="lib"></div>';
+    var box = el.querySelector('#lib');
+    function draw() {
+      if (!all.length) { box.innerHTML = '<div class="empty"><h4>Your library is empty</h4><p class="muted">Open <b>My Papers</b>, click ⋯ on a paper and choose <b>Save to Library</b>.</p><button class="btn primary" data-nav-papers>Go to My Papers</button></div>'; box.querySelector('[data-nav-papers]').onclick = function () { goto('papers'); }; return; }
+      var list = all.filter(function (p) {
+        var t = (p.settings.title + ' ' + (p.settings.subject || '') + ' ' + (p.settings.examName || '')).toLowerCase();
+        return (!libState.q || t.indexOf(libState.q.toLowerCase()) >= 0) && (!libState.cls || classKey(p.settings.className) === libState.cls) && (!libState.subj || p.settings.subject === libState.subj);
+      });
+      if (!list.length) { box.innerHTML = '<div class="empty"><h4>No saved papers match</h4><p class="muted">Try clearing the search or filters.</p></div>'; return; }
+      var groups = {}; list.forEach(function (p) { var k = classKey(p.settings.className); (groups[k] = groups[k] || []).push(p); });
+      box.innerHTML = Object.keys(groups).sort(classSort).map(function (k) {
+        var g = groups[k].sort(function (a, b) { return (b.savedAt || '').localeCompare(a.savedAt || ''); });
+        return '<section class="lib-group"><h3>' + esc(k) + ' <span class="muted">· ' + g.length + ' paper' + (g.length === 1 ? '' : 's') + '</span></h3><div class="grid">' + g.map(function (p) { return card(p, user, admin); }).join('') + '</div></section>';
+      }).join('');
+    }
+    if (all.length) {
+      el.querySelector('#l-q').oninput = function (e) { libState.q = e.target.value; draw(); };
+      el.querySelector('#l-c').onchange = function (e) { libState.cls = e.target.value; draw(); };
+      el.querySelector('#l-s').onchange = function (e) { libState.subj = e.target.value; draw(); };
+    }
+    bindCards(box, user, goto, function () { viewLibrary(el, user, goto); });
+    draw();
+  }
+
+  /* ---------- Reports: everything at a glance ---------- */
+  function tally(list, keyFn) { var m = {}; list.forEach(function (x) { var k = keyFn(x); if (k == null || k === '') return; m[k] = (m[k] || 0) + 1; }); return m; }
+  // horizontal bar chart: one series, one ink colour, value at the end of each bar, hover shows the exact figure
+  function hbars(map, sortFn, unit) {
+    var keys = Object.keys(map); if (!keys.length) return '<p class="muted">Nothing yet.</p>';
+    keys.sort(sortFn || function (a, b) { return map[b] - map[a] || a.localeCompare(b); });
+    var max = Math.max.apply(null, keys.map(function (k) { return map[k]; }));
+    return '<div class="hbars">' + keys.map(function (k) {
+      var v = map[k], w = Math.max(2, Math.round(v / max * 100)), tip = k + ': ' + v + ' ' + (v === 1 ? unit[0] : unit[1]);
+      return '<div class="hbar" title="' + esc(tip) + '" aria-label="' + esc(tip) + '"><span class="hbar-l" dir="auto">' + esc(k) + '</span><span class="hbar-t"><span class="hbar-f" style="width:' + w + '%"></span></span><span class="hbar-v">' + v + '</span></div>';
+    }).join('') + '</div>';
+  }
+  function monthCols(list) {
+    var now = new Date(), months = [];
+    for (var i = 5; i >= 0; i--) { var d = new Date(now.getFullYear(), now.getMonth() - i, 1); months.push({ y: d.getFullYear(), m: d.getMonth(), label: d.toLocaleDateString('en-US', { month: 'short' }), n: 0 }); }
+    list.forEach(function (p) { var d = new Date(p.createdAt); months.forEach(function (mo) { if (d.getFullYear() === mo.y && d.getMonth() === mo.m) mo.n++; }); });
+    var max = Math.max(1, Math.max.apply(null, months.map(function (m) { return m.n; })));
+    return '<div class="vcols">' + months.map(function (m) {
+      var tip = m.label + ' ' + m.y + ': ' + m.n + ' paper' + (m.n === 1 ? '' : 's') + ' created';
+      return '<div class="vcol" title="' + esc(tip) + '" aria-label="' + esc(tip) + '"><span class="vcol-v">' + (m.n || '') + '</span><span class="vcol-t"><span class="vcol-f" style="height:' + (m.n ? Math.max(4, Math.round(m.n / max * 100)) : 0) + '%"></span></span><span class="vcol-l">' + m.label + '</span></div>';
+    }).join('') + '</div>';
+  }
+  function csvCell(v) { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+
+  function viewReports(el, user, goto) {
+    var admin = user.role === 'admin', papers = PMStorage.papersFor(user), lib = PMStorage.libraryFor(user);
+    var T = Translations.get('en').types;
+    var byClass = tally(papers, function (p) { return classKey(p.settings.className); });
+    var bySubject = tally(papers, function (p) { return (p.settings.subject || '').trim() || 'No subject'; });
+    var byLang = tally(papers, function (p) { return (p.lang === 'ur' ? 'Urdu' : 'English') + (p.autoTranslate ? ' (auto-translated)' : ''); });
+    var types = {}; papers.forEach(function (p) { (p.sections || []).forEach(function (s) { if (s.enabled !== false) types[T[s.type] || s.type] = (types[T[s.type] || s.type] || 0) + 1; }); });
+    var questions = papers.reduce(function (n, p) { return n + countQuestions(p); }, 0);
+    var classes = Object.keys(byClass).sort(classSort), subjects = Object.keys(bySubject).sort();
+
+    function tile(n, l, id) { return '<div class="stat"' + (id ? ' id="' + id + '"' : '') + '><div class="n">' + n + '</div><div class="l">' + l + '</div></div>'; }
+    el.innerHTML =
+      '<div class="rep-head"><div><h2>' + (admin ? 'School report' : 'My report') + '</h2><p class="muted">' + (admin ? 'All papers and teachers in this site.' : 'Your papers at a glance.') + ' Updated ' + new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) + '.</p></div>' +
+      '<button class="btn" id="rep-csv">Download report (CSV)</button></div>' +
+      '<div class="stats rep-stats">' + tile(papers.length, 'Papers') + tile(classes.filter(function (c) { return c !== 'No class'; }).length, 'Classes') + tile(subjects.filter(function (s) { return s !== 'No subject'; }).length, 'Subjects') +
+        tile(questions, 'Questions') + tile(lib.length, 'In library') + (admin ? tile('…', 'Teachers', 'rep-teachers') : tile((byLang['Urdu'] || 0) + (byLang['Urdu (auto-translated)'] || 0), 'Urdu papers')) + '</div>' +
+      (papers.length ? '' : '<div class="empty" style="margin-bottom:20px"><h4>No papers yet</h4><p class="muted">Create a paper and it will show up in these numbers.</p><button class="btn primary" data-nav-new>Create New Paper</button></div>') +
+      '<div class="rep-grid">' +
+        '<section class="panel"><h3>Papers by class</h3>' + hbars(byClass, classSort, ['paper', 'papers']) + '</section>' +
+        '<section class="panel"><h3>Papers by subject</h3>' + hbars(bySubject, null, ['paper', 'papers']) + '</section>' +
+        '<section class="panel"><h3>Papers created (last 6 months)</h3>' + monthCols(papers) + '</section>' +
+        '<section class="panel"><h3>Language</h3>' + hbars(byLang, null, ['paper', 'papers']) + '</section>' +
+        '<section class="panel rep-wide"><h3>Question types used</h3>' + hbars(types, null, ['section', 'sections']) + '</section>' +
+      '</div>' +
+      (classes.length ? '<section class="panel"><h3>Classes × subjects</h3><p class="muted" style="margin-top:0">How many papers each class has in each subject.</p><div class="table-wrap"><table class="table matrix"><thead><tr><th>Class</th>' + subjects.map(function (s) { return '<th dir="auto">' + esc(s) + '</th>'; }).join('') + '<th>Total</th></tr></thead><tbody>' +
+        classes.map(function (c) {
+          var row = papers.filter(function (p) { return classKey(p.settings.className) === c; });
+          return '<tr><th scope="row">' + esc(c) + '</th>' + subjects.map(function (s) { var n = row.filter(function (p) { return ((p.settings.subject || '').trim() || 'No subject') === s; }).length; return '<td' + (n ? '' : ' class="muted"') + '>' + (n || '–') + '</td>'; }).join('') + '<td><b>' + row.length + '</b></td></tr>';
+        }).join('') + '</tbody></table></div></section>' : '') +
+      (admin ? '<section class="panel"><h3>Teachers</h3><div id="rep-tt"><p class="muted">Loading teachers…</p></div></section>' : '');
+
+    var nb = el.querySelector('[data-nav-new]'); if (nb) nb.onclick = function () { goto('new'); };
+    var teacherRows = [];
+    if (admin) PMStorage.listUsers().then(function (r) {
+      if (!el.isConnected) return;
+      var box = el.querySelector('#rep-tt');
+      if (r.error) { box.innerHTML = '<p class="muted">' + esc(r.error) + '</p>'; el.querySelector('#rep-teachers .n').textContent = '–'; return; }
+      el.querySelector('#rep-teachers .n').textContent = r.users.filter(function (u) { return u.role === 'teacher'; }).length;
+      teacherRows = r.users.map(function (u) {
+        var mine = papers.filter(function (p) { return p.ownerId === u.id; });
+        var last = mine.reduce(function (m, p) { return p.updatedAt > m ? p.updatedAt : m; }, '');
+        return { name: u.name, email: u.email, role: u.role, papers: mine.length, classes: uniq(mine.map(function (p) { return classKey(p.settings.className); })).filter(function (c) { return c !== 'No class'; }).sort(classSort), subjects: uniq(mine.map(function (p) { return (p.settings.subject || '').trim(); })), questions: mine.reduce(function (n, p) { return n + countQuestions(p); }, 0), last: last };
+      }).sort(function (a, b) { return b.papers - a.papers || a.name.localeCompare(b.name); });
+      box.innerHTML = '<div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Role</th><th>Papers</th><th>Questions</th><th>Classes</th><th>Subjects</th><th>Last active</th></tr></thead><tbody>' + teacherRows.map(function (t) {
+        return '<tr><td><b>' + esc(t.name) + '</b><br><span class="muted">' + esc(t.email) + '</span></td><td><span class="tag">' + esc(t.role) + '</span></td><td>' + t.papers + '</td><td>' + t.questions + '</td><td>' + (esc(t.classes.join(', ')) || '–') + '</td><td dir="auto">' + (esc(t.subjects.join(', ')) || '–') + '</td><td>' + (t.last ? fmtDate(t.last) : '–') + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+    });
+
+    el.querySelector('#rep-csv').onclick = function () {
+      var lines = [['Paper', 'Class', 'Subject', 'Language', 'Questions', 'Sections', 'Teacher', 'Created', 'Updated', 'In library'].map(csvCell).join(',')];
+      papers.concat(lib).forEach(function (p) {
+        lines.push([p.settings.title, classKey(p.settings.className), p.settings.subject, p.lang === 'ur' ? 'Urdu' : 'English', countQuestions(p), (p.sections || []).length, PMStorage.ownerName(p.ownerId) || user.name, (p.createdAt || '').slice(0, 10), (p.updatedAt || '').slice(0, 10), p.kind === 'library' ? 'yes' : 'no'].map(csvCell).join(','));
+      });
+      if (teacherRows.length) { lines.push(''); lines.push(['Teacher', 'Email', 'Role', 'Papers', 'Questions', 'Classes', 'Subjects', 'Last active'].map(csvCell).join(',')); teacherRows.forEach(function (t) { lines.push([t.name, t.email, t.role, t.papers, t.questions, t.classes.join(' / '), t.subjects.join(' / '), (t.last || '').slice(0, 10)].map(csvCell).join(',')); }); }
+      var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+      a.download = 'paper-maker-report-' + new Date().toISOString().slice(0, 10) + '.csv'; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+      toast('Report downloaded');
+    };
+  }
+
   /* ---------- router ---------- */
   function render(user, view, id, goto, refreshUser) {
     var el = shell.querySelector('#view'); el.style.maxWidth = '';
     if (builderHandle) { builderHandle.flush(); builderHandle = null; }
+    viewIsLibrary = view === 'view' && (PMStorage.getPaper(id, user) || {}).kind === 'library';
     setActive(view);
     var main = shell.querySelector('.main'); main.classList.remove('is-builder');
     if (view === 'builder') {
@@ -319,6 +491,8 @@
       case 'papers': return viewPapers(el, user, goto, false);
       case 'new': return viewNew(el, user, goto);
       case 'templates': return viewTemplates(el, user, goto);
+      case 'library': return viewLibrary(el, user, goto);
+      case 'reports': return viewReports(el, user, goto);
       case 'view': return viewPaper(el, user, goto, id);
       case 'profile': return viewProfile(el, user, goto, refreshUser);
       case 'settings': return viewSettings(el, user);

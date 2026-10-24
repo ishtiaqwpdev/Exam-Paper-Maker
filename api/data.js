@@ -161,7 +161,7 @@ const actions = {
 
   async listUsers(b, req) {
     const me = await currentUser(req); needAdmin(me);
-    const rows = await DB.query(`SELECT u.*, (SELECT count(*)::int FROM pm_papers p WHERE p.owner_id = u.id) AS papers FROM pm_users u ORDER BY u.created_at`);
+    const rows = await DB.query(`SELECT u.*, (SELECT count(*)::int FROM pm_papers p WHERE p.owner_id = u.id AND coalesce(p.data->>'kind', '') <> 'library') AS papers FROM pm_users u ORDER BY u.created_at`);
     return { users: rows.map(u => Object.assign(publicUser(u), { papers: u.papers, createdAt: u.created_at })) };
   },
 
