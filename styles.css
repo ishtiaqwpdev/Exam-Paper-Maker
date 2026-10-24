@@ -487,3 +487,4 @@ html { transition: none; }
 .tpl-prev-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
 .tpl-prev { max-height: 70vh; border-radius: var(--radius); }
 .modal.wide .view-stage { padding: 12px; }
+.tpl-h { font-size: 18px; margin: 6px 0 14px; }

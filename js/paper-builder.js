@@ -107,22 +107,39 @@
     return p;
   }
 
-  /* ------------ class templates (Nursery → 2nd Year) ------------
-     One ready paper layout per class: sections, number of questions, marks, time and instructions fitting the level.
-     Question texts are short placeholders ("Question 1" / "سوال 1") for the teacher to replace. */
+  /* ------------ class templates: English, Urdu and Mathematics for every class (Nursery → 2nd Year) ------------
+     Each template has the sections, number of questions, marks, time and instructions that fit the class level.
+     Question texts are short placeholders ("Question 1" / "سوال 1") for the teacher to replace.
+     A section spec is [type, how many, marks each, attempt-any (optional), variant (optional)]. */
   var LEVELS = {
-    early:  { marks: 20, time: ['30 minutes', '30 منٹ'], lines: 1, opts: 3,
-              spec: [['fill', 4, 1], ['match', 4, 1], ['mcq', 4, 1], ['short', 4, 2]] },
-    primary: { marks: 30, time: ['1 hour', '1 گھنٹہ'], lines: 1, opts: 3,
-              spec: [['mcq', 5, 1], ['fill', 5, 1], ['tf', 5, 1], ['match', 5, 1], ['short', 5, 2]] },
-    upper:  { marks: 50, time: ['1 hour 30 minutes', 'ڈیڑھ گھنٹہ'], lines: 2, opts: 4,
-              spec: [['mcq', 10, 1], ['fill', 5, 1], ['tf', 5, 1], ['match', 5, 1], ['short', 5, 3], ['long', 2, 5]] },
-    middle: { marks: 75, time: ['2 hours 30 minutes', 'ڈھائی گھنٹے'], lines: 3, opts: 4,
-              spec: [['mcq', 15, 1], ['fill', 5, 1], ['tf', 5, 1], ['match', 5, 1], ['short', 10, 3], ['long', 3, 5]] },
-    matric: { marks: 75, time: ['3 hours', '3 گھنٹے'], lines: 0, opts: 4, board: true,
-              spec: [['mcq', 15, 1], ['short', 20, 2, 15], ['long', 5, 10, 3]] },
-    inter:  { marks: 100, time: ['3 hours', '3 گھنٹے'], lines: 0, opts: 4, board: true,
-              spec: [['mcq', 20, 1], ['short', 30, 2, 20], ['long', 8, 8, 5]] }
+    early:   { marks: 20,  time: ['30 minutes', '30 منٹ'], lines: 1, opts: 3, eq: '2 + 3 =' },
+    primary: { marks: 30,  time: ['1 hour', '1 گھنٹہ'], lines: 1, opts: 3, eq: '25 + 37 =' },
+    upper:   { marks: 50,  time: ['1 hour 30 minutes', 'ڈیڑھ گھنٹہ'], lines: 2, opts: 4, eq: '\\frac{1}{2} + \\frac{1}{4} =' },
+    middle:  { marks: 75,  time: ['2 hours 30 minutes', 'ڈھائی گھنٹے'], lines: 3, opts: 4, eq: '2x + 5 = 15' },
+    matric:  { marks: 75,  time: ['3 hours', '3 گھنٹے'], lines: 0, opts: 4, board: true, eq: 'x^{2} - 5x + 6 = 0' },
+    inter:   { marks: 100, time: ['3 hours', '3 گھنٹے'], lines: 0, opts: 4, board: true, eq: '\\int_{0}^{1} x^{2}\\,dx' }
+  };
+  // language papers (English and Urdu use the same layout)
+  var LANG_SPEC = {
+    early:   [['fill', 4, 1], ['match', 4, 1], ['mcq', 4, 1], ['short', 4, 2]],
+    primary: [['mcq', 5, 1], ['fill', 5, 1], ['match', 5, 1], ['sentence', 5, 1], ['short', 5, 2]],
+    upper:   [['mcq', 10, 1], ['fill', 5, 1], ['rearrange', 5, 1], ['sentence', 5, 2], ['passage', 5, 2], ['long', 2, 5]],
+    middle:  [['mcq', 15, 1], ['fill', 5, 1], ['sentence', 5, 2], ['passage', 5, 2], ['short', 5, 3], ['long', 2, 10]],
+    matric:  [['mcq', 15, 1], ['short', 14, 2, 10], ['passage', 5, 2], ['long', 4, 10, 3]],
+    inter:   [['mcq', 20, 1], ['short', 15, 2, 10], ['passage', 5, 2], ['long', 7, 10, 5]]
+  };
+  var MATH_SPEC = {
+    early:   [['math', 4, 2], ['fill', 4, 1], ['match', 4, 1], ['mcq', 4, 1]],
+    primary: [['mcq', 5, 1], ['fill', 5, 1], ['tf', 5, 1], ['math', 5, 3]],
+    upper:   [['mcq', 10, 1], ['fill', 5, 1], ['tf', 5, 1], ['math', 5, 2], ['math', 4, 5, 0, 'word']],
+    middle:  [['mcq', 15, 1], ['fill', 5, 1], ['tf', 5, 1], ['math', 10, 3], ['math', 4, 5, 0, 'word']],
+    matric:  [['mcq', 15, 1], ['math', 20, 2, 15], ['math', 5, 10, 3, 'long']],
+    inter:   [['mcq', 20, 1], ['math', 30, 2, 20], ['math', 8, 8, 5, 'long']]
+  };
+  var SUBJECTS = {
+    english: { name: ['English', 'انگریزی'], lang: 'en' },
+    urdu:    { name: ['Urdu', 'اردو'], lang: 'ur' },
+    math:    { name: ['Mathematics', 'ریاضی'], lang: null }          // English or Urdu medium
   };
   function levelOf(cls) {
     if (cls === 'Nursery' || cls === 'KG') return 'early';
@@ -134,55 +151,80 @@
     primary: ['Attempt all questions. Write neatly.', 'تمام سوالات حل کریں۔ صاف لکھیں۔'],
     upper: ['Attempt all questions. Read each question carefully before answering.', 'تمام سوالات حل کریں۔ جواب دینے سے پہلے ہر سوال غور سے پڑھیں۔'],
     middle: ['Attempt all questions. Marks are shown against each question.', 'تمام سوالات حل کریں۔ ہر سوال کے سامنے نمبر درج ہیں۔'],
-    matric: ['Section A (objective) must be answered first. Attempt the required number of questions from Sections B and C. Use of calculator is not allowed.', 'حصہ معروضی پہلے حل کریں۔ حصہ ب اور ج سے مطلوبہ تعداد میں سوالات حل کریں۔ کیلکولیٹر کے استعمال کی اجازت نہیں۔'],
+    matric: ['Section A (objective) must be answered first. Attempt the required number of questions from Sections B and C.', 'حصہ معروضی پہلے حل کریں۔ حصہ ب اور ج سے مطلوبہ تعداد میں سوالات حل کریں۔'],
     inter: ['Section A (objective) must be answered first. Attempt the required number of questions from Sections B and C. Write your roll number on the answer sheet.', 'حصہ معروضی پہلے حل کریں۔ حصہ ب اور ج سے مطلوبہ تعداد میں سوالات حل کریں۔ جوابی کاپی پر اپنا رول نمبر لکھیں۔']
   };
-  function classTemplate(cls, lang, owner) {
-    var ur = lang === 'ur', L = LEVELS[levelOf(cls)], lv = levelOf(cls);
-    var p = newPaper(owner, ur ? 'ur' : 'en');
-    var label = window.Classes ? Classes.label(cls) : cls;
-    p.settings.title = label.replace(/ \(.*\)$/, '') + (ur ? ' — پرچہ ٹیمپلیٹ' : ' — Exam Paper Template');
+  function specFor(cls, subject) { return (subject === 'math' ? MATH_SPEC : LANG_SPEC)[levelOf(cls)]; }
+
+  function classTemplate(cls, subject, lang, owner) {
+    subject = SUBJECTS[subject] ? subject : 'english';
+    var subj = SUBJECTS[subject]; lang = subj.lang || (lang === 'ur' ? 'ur' : 'en');
+    var ur = lang === 'ur', lv = levelOf(cls), L = LEVELS[lv], spec = specFor(cls, subject), isMath = subject === 'math';
+    var p = newPaper(owner, lang);
+    var clsName = (window.Classes ? Classes.label(cls) : cls).replace(/ \(.*\)$/, '');
+    p.settings.title = clsName + ' — ' + subj.name[0] + (isMath && ur ? ' (Urdu medium)' : '');
     p.settings.examName = ur ? 'سالانہ امتحان' : 'Annual Examination';
-    p.settings.className = cls; p.settings.subject = ''; p.settings.duration = L.time[ur ? 1 : 0]; p.settings.totalMarks = String(L.marks);
+    p.settings.className = cls; p.settings.subject = subj.name[ur ? 1 : 0];
+    p.settings.duration = L.time[ur ? 1 : 0]; p.settings.totalMarks = String(L.marks);
     p.settings.instructions = INSTR[lv][ur ? 1 : 0];
-    p.show.instructions = true; p.show.rollNo = true; p.show.date = !!L.board; p.show.passingMarks = false;
+    p.show.instructions = true; p.show.rollNo = true; p.show.date = !!L.board;
     var Q = ur ? 'سوال' : 'Question', OPT = ur ? ['جواب الف', 'جواب ب', 'جواب ج', 'جواب د'] : ['Option A', 'Option B', 'Option C', 'Option D'];
     var num = 0;
-    p.sections = L.spec.map(function (sp) {
-      var type = sp[0], n = sp[1], each = sp[2], attempt = sp[3], s = newSection(type, ur ? 'ur' : 'en'), i, items = [];
-      s.startNo = num + 1;
+    p.sections = spec.map(function (sp, si) {
+      var type = sp[0], n = sp[1], each = sp[2], attempt = sp[3] || 0, variant = sp[4] || '';
+      var s = newSection(type, lang), items = [], i;
       for (i = 1; i <= n; i++) items.push(i);
+      var q = function (k) { return Q + ' ' + (num + k); };
+      s.startNo = num + 1;
       if (type === 'mcq') {
         s.title = ur ? 'درست جواب کا انتخاب کریں۔' : 'Choose the correct answer.';
-        s.questions = items.map(function (k) { return { text: Q + ' ' + (num + k), options: OPT.slice(0, L.opts), correct: -1 }; });
+        s.questions = items.map(function (k) { return { text: q(k), options: OPT.slice(0, L.opts), correct: -1 }; });
       } else if (type === 'fill') {
         s.title = ur ? 'خالی جگہ پُر کریں۔' : 'Fill in the blanks.';
-        s.items = items.map(function (k) { return (ur ? 'جملہ ' : 'Sentence ') + (num + k) + ' ______'; });
+        s.items = items.map(function (k) { return lv === 'early' && !isMath ? (ur ? 'ا ب ______ ت' : 'A B ______ D') : lv === 'early' ? '1, 2, ______, 4' : (ur ? 'جملہ ' : 'Sentence ') + (num + k) + ' ______'; });
       } else if (type === 'tf') {
         s.title = ur ? 'درست یا غلط لکھیں۔' : 'Write True or False.';
         s.items = items.map(function (k) { return (ur ? 'بیان ' : 'Statement ') + (num + k); });
       } else if (type === 'match') {
         s.title = ur ? 'کالم الف کو کالم ب سے ملائیں۔' : 'Match Column A with Column B.';
         s.left = items.map(function (k) { return (ur ? 'الف ' : 'A') + k; }); s.right = items.map(function (k) { return (ur ? 'ب ' : 'B') + k; });
-      } else {
-        if (attempt) s.title = ur ? 'کوئی سے ' + attempt + ' سوالات کے ' + (type === 'short' ? 'مختصر جوابات لکھیں۔' : 'تفصیلی جوابات لکھیں۔') : (type === 'short' ? 'Write short answers to any ' + attempt + ' questions.' : 'Attempt any ' + attempt + ' questions.');
+        s.startNo = 1;
+      } else if (type === 'sentence') {
+        s.title = ur ? 'درج ذیل الفاظ کے جملے بنائیں۔' : 'Make sentences with the following words.';
+        s.items = items.map(function (k) { return (ur ? 'لفظ ' : 'Word ') + k; });
+      } else if (type === 'rearrange') {
+        s.title = ur ? 'درج ذیل جملوں کو ترتیب دیں۔' : 'Rearrange the following sentences.';
+        s.items = items.map(function (k) { return (ur ? 'بے ترتیب جملہ ' : 'Jumbled sentence ') + (num + k); });
+      } else if (type === 'passage') {
+        s.title = ur ? 'عبارت پڑھ کر سوالات کے جوابات دیں۔' : 'Read the passage and answer the questions.';
+        s.passage = ur ? 'یہاں عبارت لکھیں یا چسپاں کریں۔' : 'Write or paste the passage here.';
+        s.items = items.map(q); s.lines = Math.max(L.lines, 1);
+      } else if (type === 'math') {
+        var word = variant === 'word';
+        s.title = attempt ? (ur ? 'کوئی سے ' + attempt + ' سوالات حل کریں۔' : 'Solve any ' + attempt + ' questions.')
+          : word ? (ur ? 'عبارتی سوالات حل کریں۔' : 'Solve the word problems.') : (ur ? 'درج ذیل سوالات حل کریں۔' : 'Solve the following.');
+        s.items = items.map(function (k) { return { text: word ? (ur ? 'عبارتی سوال ' : 'Word problem ') + (num + k) : q(k), eq: word ? '' : L.eq, lines: L.board ? 0 : (word ? Math.max(L.lines, 2) + 2 : Math.max(L.lines, 2)) }; });
+      } else {   // short / long
+        if (attempt) s.title = ur ? 'کوئی سے ' + attempt + ' سوالات کے ' + (type === 'short' ? 'مختصر' : 'تفصیلی') + ' جوابات لکھیں۔' : (type === 'short' ? 'Write short answers to any ' + attempt + ' questions.' : 'Attempt any ' + attempt + ' questions.');
+        else if (type === 'long' && !isMath) s.title = ur ? 'مضمون یا خط لکھیں۔' : 'Write an essay or a letter.';
         else s.title = ur ? (type === 'short' ? 'درج ذیل سوالات کے مختصر جوابات لکھیں۔' : 'درج ذیل سوالات کے تفصیلی جوابات لکھیں۔') : (type === 'short' ? 'Answer the following questions briefly.' : 'Answer the following questions in detail.');
-        s.items = items.map(function (k) { return Q + ' ' + (num + k); });
-        s.lines = type === 'long' ? (L.lines ? L.lines * 2 : 0) : L.lines;
+        s.items = items.map(type === 'long' && !isMath && !attempt ? function (k) { return (ur ? 'عنوان ' : 'Topic ') + k; } : q);
+        s.lines = type === 'long' ? (L.lines ? L.lines * 3 : 0) : L.lines;
       }
       var count = attempt || n;
       s.marks = count + ' × ' + each + ' = ' + (count * each);
-      if (L.board) s.title = (ur ? ['حصہ الف (معروضی)', 'حصہ ب', 'حصہ ج'] : ['Section A (Objective)', 'Section B', 'Section C'])[Math.min(2, ['mcq', 'short', 'long'].indexOf(type))] + ' — ' + s.title;
-      num += type === 'match' ? 0 : n;
-      if (type === 'match') s.startNo = 1;
+      if (L.board) {
+        var sec = si === 0 ? 0 : si === spec.length - 1 ? 2 : 1;
+        s.title = (ur ? ['حصہ الف (معروضی)', 'حصہ ب', 'حصہ ج'] : ['Section A (Objective)', 'Section B', 'Section C'])[sec] + ' — ' + s.title;
+      }
+      if (type !== 'match') num += n;
       return s;
     });
     return p;
   }
-  function templateInfo(cls) {
-    var L = LEVELS[levelOf(cls)];
-    var q = L.spec.reduce(function (n, sp) { return n + sp[1]; }, 0);
-    return { marks: L.marks, time: L.time[0], sections: L.spec.length, questions: q, board: !!L.board };
+  function templateInfo(cls, subject) {
+    var spec = specFor(cls, subject), L = LEVELS[levelOf(cls)];
+    return { marks: L.marks, time: L.time[0], sections: spec.length, questions: spec.reduce(function (n, sp) { return n + sp[1]; }, 0), board: !!L.board };
   }
 
   /* ------------ path helpers ------------ */

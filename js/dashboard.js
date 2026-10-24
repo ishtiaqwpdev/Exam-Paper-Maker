@@ -236,7 +236,8 @@
   }
 
   /* ---------- Templates: one per class (Nursery → 2nd Year), my own templates, and sample papers ---------- */
-  var tplState = { cls: '', lang: 'en' };
+  var tplState = { cls: '', subj: '', lang: 'en' };
+  var TPL_SUBJECTS = [['english', 'English'], ['urdu', 'Urdu'], ['math', 'Mathematics']];
   function viewTemplates(el, user, goto) {
     var mine = PMStorage.templatesFor(user), admin = user.role === 'admin';
     var samples = [
@@ -247,9 +248,10 @@
       { name: 'Urdu Science sample (Class 6)', desc: 'Urdu MCQs, table and written answer.', make: function () { return PaperBuilder.sampleUrdu(user.id); } }
     ];
     var classOpts = '<option value="">All classes</option>' + Classes.list.map(function (c) { return '<option value="' + c.v + '"' + (c.v === tplState.cls ? ' selected' : '') + '>' + esc(c.label) + '</option>'; }).join('');
-    el.innerHTML = '<div class="lib-intro"><div><h2>Templates</h2><p class="muted">Start a paper from a ready layout. <b>Use template</b> makes a new paper for you to edit — the template itself never changes. Save your own papers as templates from <b>My Papers</b> (⋯ → Save as Template).</p></div></div>' +
+    el.innerHTML = '<div class="lib-intro"><div><h2>Templates</h2><p class="muted">Ready papers for every class, Nursery to 2nd Year, in <b>English</b>, <b>Urdu</b> and <b>Mathematics</b>. <b>Use template</b> makes a new paper for you to edit — the template itself never changes. Save your own papers as templates from <b>My Papers</b> (⋯ → Save as Template).</p></div></div>' +
       '<div class="toolbar"><label class="check">Class <select class="inp" id="t-c" aria-label="Filter templates by class">' + classOpts + '</select></label>' +
-      '<label class="check">Class templates in <select class="inp" id="t-l" aria-label="Language of class templates"><option value="en"' + (tplState.lang === 'en' ? ' selected' : '') + '>English</option><option value="ur"' + (tplState.lang === 'ur' ? ' selected' : '') + '>اردو</option></select></label></div>' +
+      '<label class="check">Subject <select class="inp" id="t-s" aria-label="Filter templates by subject"><option value="">All subjects</option>' + TPL_SUBJECTS.map(function (x) { return '<option value="' + x[0] + '"' + (x[0] === tplState.subj ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') + '</select></label>' +
+      '<label class="check">Maths medium <select class="inp" id="t-l" aria-label="Medium of Mathematics templates"><option value="en"' + (tplState.lang === 'en' ? ' selected' : '') + '>English</option><option value="ur"' + (tplState.lang === 'ur' ? ' selected' : '') + '>اردو</option></select></label></div>' +
       '<div id="tpl"></div>';
     var box = el.querySelector('#tpl');
     function draw() {
@@ -260,35 +262,39 @@
           (my.length ? '<div class="grid">' + my.sort(function (a, b) { return classSort(classKey(a.settings.className), classKey(b.settings.className)); }).map(function (p) { return card(p, user, admin); }).join('') + '</div>' : '<p class="muted">None for this class yet.</p>') + '</section>';
       }
       var list = Classes.list.filter(function (c) { return !cls || c.v === cls; });
-      h += '<section class="lib-group"><h3>Class templates <span class="muted">· Nursery to 2nd Year</span></h3><div class="grid">' + list.map(function (c) {
-        var info = PaperBuilder.templateInfo(c.v), demo = PaperBuilder.classTemplate(c.v, lang, user.id);
-        return '<article class="card"><div class="thumb" data-tpl-view="' + c.v + '" title="Preview"><div class="thumb-inner">' + PaperRenderer.render(demo) + '</div></div>' +
-          '<div class="card-body"><h4>' + esc(c.label) + '</h4><div class="meta"><b>Marks</b><span>' + info.marks + '</span><b>Time</b><span>' + esc(info.time) + '</span><b>Sections</b><span>' + info.sections + (info.board ? ' (board pattern)' : '') + '</span><b>Questions</b><span>' + info.questions + '</span><b>Language</b><span>' + (lang === 'ur' ? 'Urdu' : 'English') + '</span></div></div>' +
-          '<div class="card-actions"><button class="btn small primary" data-tpl-use="' + c.v + '">Use template</button><button class="btn small" data-tpl-view="' + c.v + '">Preview</button></div></article>';
-      }).join('') + '</div></section>';
+      var subs = TPL_SUBJECTS.filter(function (x) { return !tplState.subj || x[0] === tplState.subj; });
+      h += '<h3 class="tpl-h">Class templates <span class="muted">· English, Urdu and Mathematics for every class</span></h3>';
+      h += list.map(function (c) {
+        return '<section class="lib-group"><h3>' + esc(c.label) + '</h3><div class="grid">' + subs.map(function (x) {
+          var sub = x[0], info = PaperBuilder.templateInfo(c.v, sub), demo = PaperBuilder.classTemplate(c.v, sub, lang, user.id), key = c.v + '|' + sub;
+          return '<article class="card"><div class="thumb" data-tpl-view="' + key + '" title="Preview"><div class="thumb-inner">' + PaperRenderer.render(demo) + '</div></div>' +
+            '<div class="card-body"><h4>' + esc(x[1]) + ' <span class="muted" style="font-weight:400">· ' + esc(c.label.replace(/ \(.*\)$/, '')) + '</span></h4><div class="meta"><b>Marks</b><span>' + info.marks + '</span><b>Time</b><span>' + esc(info.time) + '</span><b>Sections</b><span>' + info.sections + (info.board ? ' (board pattern)' : '') + '</span><b>Questions</b><span>' + info.questions + '</span><b>Language</b><span>' + (demo.lang === 'ur' ? 'Urdu' : 'English') + '</span></div></div>' +
+            '<div class="card-actions"><button class="btn small primary" data-tpl-use="' + key + '">Use template</button><button class="btn small" data-tpl-view="' + key + '">Preview</button></div></article>';
+        }).join('') + '</div></section>';
+      }).join('');
       if (!cls) h += '<section class="lib-group"><h3>Sample papers</h3><div class="grid">' + samples.map(function (t, i) { return '<div class="card"><div class="card-body"><h4>' + t.name + '</h4><p class="muted" style="margin:0 0 10px">' + t.desc + '</p></div><div class="card-actions"><button class="btn small primary" data-i="' + i + '">Use template</button></div></div>'; }).join('') + '</div></section>';
       box.innerHTML = h;
       box.querySelectorAll('[data-i]').forEach(function (b) { b.onclick = function () { var p = samples[+b.getAttribute('data-i')].make(); p.id = PaperBuilder.uid('p'); p.ownerId = user.id; PMStorage.savePaper(p, user); goto('builder', p.id); }; });
       box.querySelectorAll('[data-tpl-use]').forEach(function (b) { b.onclick = function () { useClassTemplate(b.getAttribute('data-tpl-use')); }; });
       box.querySelectorAll('[data-tpl-view]').forEach(function (b) {
         b.onclick = function () {
-          var c = b.getAttribute('data-tpl-view'), demo = PaperBuilder.classTemplate(c, tplState.lang, user.id);
-          modal('<div class="tpl-prev-head"><h3>' + esc(Classes.label(c)) + '</h3><div><button class="btn" data-no>Close</button> <button class="btn primary" data-ok>Use template</button></div></div><div class="view-stage tpl-prev"><div class="paper-wrap">' + PaperRenderer.render(demo) + '</div></div>', function (m, close) {
+          var k = b.getAttribute('data-tpl-view').split('|'), c = k[0], sub = k[1], demo = PaperBuilder.classTemplate(c, sub, tplState.lang, user.id);
+          modal('<div class="tpl-prev-head"><h3>' + esc(Classes.label(c).replace(/ \(.*\)$/, '') + ' — ' + (TPL_SUBJECTS.find(function (x) { return x[0] === sub; }) || [0, ''])[1]) + '</h3><div><button class="btn" data-no>Close</button> <button class="btn primary" data-ok>Use template</button></div></div><div class="view-stage tpl-prev"><div class="paper-wrap">' + PaperRenderer.render(demo) + '</div></div>', function (m, close) {
             m.classList.add('wide');
             m.querySelector('[data-no]').onclick = close;
-            m.querySelector('[data-ok]').onclick = function () { close(); useClassTemplate(c); };
+            m.querySelector('[data-ok]').onclick = function () { close(); useClassTemplate(c + '|' + sub); };
             PaperRenderer.fit();
           });
         };
       });
     }
-    function useClassTemplate(c) {
-      var p = PaperBuilder.classTemplate(c, tplState.lang, user.id);
-      p.settings.title = p.settings.title.replace(/ — (Exam Paper Template|پرچہ ٹیمپلیٹ)$/, tplState.lang === 'ur' ? ' — نیا پرچہ' : ' — New Paper');
-      PMStorage.savePaper(p, user); toast('New ' + Classes.label(c).replace(/ \(.*\)$/, '') + ' paper created — replace the placeholder questions'); goto('builder', p.id);
+    function useClassTemplate(key) {
+      var k = key.split('|'), p = PaperBuilder.classTemplate(k[0], k[1], tplState.lang, user.id);
+      PMStorage.savePaper(p, user); toast('New paper created: ' + p.settings.title + ' — replace the placeholder questions'); goto('builder', p.id);
     }
     el.querySelector('#t-c').onchange = function (e) { tplState.cls = e.target.value; draw(); };
     el.querySelector('#t-l').onchange = function (e) { tplState.lang = e.target.value; draw(); };
+    el.querySelector('#t-s').onchange = function (e) { tplState.subj = e.target.value; draw(); };
     bindCards(box, user, goto, function () { viewTemplates(el, user, goto); });
     draw();
   }

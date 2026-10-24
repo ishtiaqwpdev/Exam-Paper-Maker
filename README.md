@@ -85,13 +85,15 @@ or "FSc Part 1" are recognised as Class 6, Class 8 and 1st Year. The list is `Cl
 
 ## Templates
 
-- **Class templates**: one ready layout for every class, Nursery to 2nd Year, in English or Urdu — sections, number of
-  questions, marks, time and instructions fitting the level (Nursery/KG 20 marks, Class 1–2 30, Class 3–5 50, Class 6–8 75,
-  Class 9–10 board pattern 75, 1st/2nd Year board pattern 100). Questions are placeholders ("Question 1") to replace.
-  Preview any template, then **Use template** to get a new paper in the builder with the class already set.
+- **Class templates**: for every class, Nursery to 2nd Year, a ready **English**, **Urdu** and **Mathematics** paper
+  (42 templates; Maths in English or Urdu medium). Sections, number of questions, marks, time and instructions fit the level
+  (Nursery/KG 20 marks, Class 1–2 30, Class 3–5 50, Class 6–8 75, Class 9–10 board pattern 75, 1st/2nd Year board pattern 100).
+  English/Urdu: letters and words → sentences, rearranging, comprehension passage, essay/letter. Mathematics: equations with
+  a level-appropriate example, word problems, MCQs, fill in the blanks. Questions are placeholders to replace.
+  Filter by class and subject, preview, then **Use template** to open a new paper with class and subject already set.
 - **My templates**: save any paper as a template (My Papers ⋯ → Save as Template, or the View page). Templates are kept out
   of My Papers and Reports counts; using one creates a new paper and leaves the template unchanged.
-- The levels are set in `LEVELS` in `js/paper-builder.js`.
+- Levels and section layouts are set in `LEVELS`, `LANG_SPEC` and `MATH_SPEC` in `js/paper-builder.js`.
 
 ## Paper Library and Reports
 
