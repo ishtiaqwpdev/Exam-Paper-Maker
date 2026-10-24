@@ -74,8 +74,9 @@
         PMStorage.login(em, pw, root.querySelector('#remember').checked).then(function (r) {
           btn.disabled = false; btn.textContent = 'Log In';
           if (r.error) return showErr(r.error);
-          boot();
-          if (r.imported) Dashboard.toast(r.imported + ' paper(s) from this browser were saved to your account.');
+          welcome('login', r.user || PMStorage.currentUser(), function () {
+            if (r.imported) Dashboard.toast(r.imported + ' paper(s) from this browser were saved to your account.');
+          });
         });
       };
     } else {
@@ -89,9 +90,10 @@
         PMStorage.register(nm, em, pw, ac).then(function (r) {
           btn.disabled = false; btn.textContent = 'Create Account';
           if (r.error) return showErr(r.error);
-          boot();
-          if (r.first) Dashboard.toast('Welcome! You are the first account, so you are the admin of this site.');
-          else if (r.imported) Dashboard.toast(r.imported + ' paper(s) from this browser were saved to your account.');
+          welcome('register', Object.assign({ academy: ac }, r.user || PMStorage.currentUser()), function () {
+            if (r.first) Dashboard.toast('You are the first account, so you are the admin of this site.');
+            else if (r.imported) Dashboard.toast(r.imported + ' paper(s) from this browser were saved to your account.');
+          });
         });
       };
     }
@@ -192,6 +194,31 @@
       }
       step1();
     });
+  }
+  /* Welcome loader after login / sign-up: academy logo on top, a greeting below, then the dashboard.
+     The dashboard is built underneath while the loader shows; a click or key skips it. */
+  function welcome(kind, user, after) {
+    var first = String((user && user.name) || '').trim().split(/\s+/)[0] || 'there';
+    var academy = String((user && user.academy) || '').trim() || 'Exam Paper Maker';
+    var title = kind === 'register' ? 'Welcome to ' + academy + ', ' + first + '!' : 'Welcome back, ' + first + '!';
+    var sub = kind === 'register' ? 'Your account is ready. Setting up your dashboard…' : 'Getting your dashboard ready…';
+    var skip = !!navigator.webdriver && !window.__pmShowWelcome;      // automated test browsers skip the pause
+    var ov = document.createElement('div');
+    ov.className = 'welcome-loader'; ov.setAttribute('role', 'status'); ov.setAttribute('aria-live', 'polite');
+    ov.innerHTML = '<div class="wl-inner"><img class="wl-logo" src="assets/logo.png" width="640" height="567" alt="' + esc(academy) + ' logo">' +
+      '<h1 class="wl-title">' + esc(title) + '</h1><p class="wl-sub">' + esc(sub) + '</p><div class="wl-bar" aria-hidden="true"><span></span></div></div>';
+    if (!skip) document.body.appendChild(ov);
+    boot();                                                     // dashboard renders behind the loader
+    var done = false;
+    function finish() {
+      if (done) return; done = true;
+      document.removeEventListener('keydown', finish);
+      ov.classList.add('out');
+      setTimeout(function () { ov.remove(); if (after) after(); }, skip ? 0 : 320);
+    }
+    if (skip) return finish();
+    ov.addEventListener('click', finish); document.addEventListener('keydown', finish);
+    setTimeout(finish, 1700);
   }
   function loginScreen() { authScreen('login'); }
 
