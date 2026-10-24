@@ -319,7 +319,10 @@
     paper.sections.forEach(function (s) { if (s.enabled !== false) all = all.concat(sectionStrings(s)); });
     var src = detect(all, paper.lang || 'en'), tl = opposite(src);
     p.lang = tl;
-    SETTINGS_FIELDS.forEach(function (k) { p.settings[k] = tr(p.settings[k], tl, missing); });
+    SETTINGS_FIELDS.forEach(function (k) {
+      if (k === 'className' && window.Classes && Classes.isStandard(p.settings[k])) return;   // printed in the paper's language by the renderer
+      p.settings[k] = tr(p.settings[k], tl, missing);
+    });
     p.sections.forEach(function (s) {
       if (s.enabled === false) return;                       // hidden sections are not printed, so not translated
       var st =opposite(detect(sectionStrings(s), s.lang || src));

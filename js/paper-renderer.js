@@ -95,7 +95,7 @@
 
     var meta = [];
     function m(show, label, val) { if (show && val) meta.push('<span class="meta-item">' + label + ': <bdi>' + esc(val) + '</bdi></span>'); }
-    m(sh.className, t.class_label, S.className); m(sh.subject, t.subject, S.subject);
+    m(sh.className, t.class_label, window.Classes ? Classes.display(S.className, lang) : S.className); m(sh.subject, t.subject, S.subject);
     m(sh.date, t.date, fmtDate(S.date)); m(sh.duration, t.duration, S.duration);
     m(sh.totalMarks, t.marks, S.totalMarks); m(sh.passingMarks, t.passing, S.passingMarks);
     if (sh.studentName) meta.push('<span class="meta-item">' + t.name_label + ': ' + '<span class="blank" style="min-width:130px"></span></span>');

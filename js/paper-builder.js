@@ -39,7 +39,7 @@
   function sampleEnglish(owner) {
     var p = newPaper(owner, 'en');
     p.settings.title = 'Grade 6 English — Final Term';
-    p.settings.examName = 'Final term Exam 2021-22'; p.settings.className = '6th'; p.settings.subject = 'English A'; p.settings.totalMarks = '75';
+    p.settings.examName = 'Final term Exam 2021-22'; p.settings.className = 'Class 6'; p.settings.subject = 'English A'; p.settings.totalMarks = '75';
     p.show.duration = false;
     var f = newSection('fill', 'en'); f.title = 'Fill in the blanks.';
     f.items = ['The ________ for road accidents is not so severe.', 'A regular ________ Showed also be started.', 'Sports promote ________.', 'We ________ out for recreation.', 'The ________ of sports are unexpected.'];
@@ -58,7 +58,7 @@
   function sampleUrdu(owner) {
     var p = newPaper(owner, 'ur');
     p.settings.title = 'Grade 6 Science Examination';
-    p.settings.examName = 'LESSON BASED ASSESSMENT 2025-26'; p.settings.className = '6'; p.settings.subject = 'سائنس';
+    p.settings.examName = 'LESSON BASED ASSESSMENT 2025-26'; p.settings.className = 'Class 6'; p.settings.subject = 'سائنس';
     p.settings.chapter = 'سبق 8: پانی کی حالتوں کو جاننے کا سفر'; p.settings.duration = '40 منٹ'; p.settings.totalMarks = '20'; p.settings.preparedBy = 'SYED RASOOL';
     p.show.chapter = true; p.show.preparedBy = true;
     var q = newSection('mcq', 'ur'); q.title = 'ذیل میں دیے گئے چار متبادل جوابات میں سے صحیح جواب کا انتخاب کر کے لکھیے۔'; q.marks = '1 × 6 = 6';
@@ -81,7 +81,7 @@
   function sampleMath(owner) {
     var p = newPaper(owner, 'en');
     p.settings.title = 'Grade 8 Mathematics — Term Test';
-    p.settings.examName = 'Mathematics Term Test'; p.settings.className = 'Grade 8'; p.settings.subject = 'Mathematics'; p.settings.duration = '60 minutes'; p.settings.totalMarks = '25';
+    p.settings.examName = 'Mathematics Term Test'; p.settings.className = 'Class 8'; p.settings.subject = 'Mathematics'; p.settings.duration = '60 minutes'; p.settings.totalMarks = '25';
     var q = newSection('mcq', 'en'); q.title = 'Choose the correct answer.'; q.marks = '1 × 4 = 4'; q.showKey = false;
     q.questions = [
       { text: 'The value of $\\frac{3}{4} + \\frac{1}{2}$ is', options: ['$\\frac{5}{4}$', '$\\frac{4}{6}$', '$\\frac{4}{8}$', '$1$'], correct: 0 },
@@ -238,7 +238,10 @@
     h += '<div class="field"><label>Paper language / direction</label><select data-p="lang" data-rerender="1"><option value="en"' + (p.lang === 'en' ? ' selected' : '') + '>English (left-to-right)</option><option value="ur"' + (p.lang === 'ur' ? ' selected' : '') + '>اردو (right-to-left)</option></select></div>';
     h += fld('Paper title (internal / card name)', 'settings.title', S.title);
     h += fld('Exam name', 'settings.examName', S.examName, { ph: 'e.g. Lesson Based Assessment 2025-26' });
-    h += '<div class="input-row">' + fld('Academic year', 'settings.academicYear', S.academicYear) + fld('Class / grade', 'settings.className', S.className) + '</div>';
+    var otherCls = S.className && !Classes.isStandard(S.className);
+    h += '<div class="input-row">' + fld('Academic year', 'settings.academicYear', S.academicYear) +
+      '<div class="field"><label for="b-class">Class</label><select id="b-class" data-class-select="1">' + Classes.options(S.className) + '</select>' +
+      '<input type="text" data-p="settings.className" dir="auto" placeholder="Type the class, e.g. O Level" value="' + esc(otherCls ? S.className : '') + '"' + (otherCls ? '' : ' hidden') + ' style="margin-top:6px"></div></div>';
     h += '<div class="input-row">' + fld('Subject', 'settings.subject', S.subject) + fld('Chapter / lesson', 'settings.chapter', S.chapter) + '</div>';
     h += '<div class="input-row">' + fld('Exam date', 'settings.date', S.date, { type: 'date' }) + fld('Duration', 'settings.duration', S.duration, { ph: '40 minutes' }) + '</div>';
     h += '<div class="input-row">' + fld('Total marks', 'settings.totalMarks', S.totalMarks) + fld('Passing marks', 'settings.passingMarks', S.passingMarks) + '</div>';
@@ -351,7 +354,14 @@
 
     // ----- input handling (updates model and live preview) -----
     editEl.addEventListener('input', function (e) {
-      var t = e.target, p = t.getAttribute('data-p'); if (!p) return;
+      var t = e.target;
+      if (t.hasAttribute && t.hasAttribute('data-class-select')) {        // class picker: a standard class, or "Other" + typed text
+        var other = t.parentNode.querySelector('input[data-p="settings.className"]');
+        if (t.value === '__other') { other.hidden = false; other.value = Classes.isStandard(paper.settings.className) ? '' : paper.settings.className; other.focus(); paper.settings.className = other.value; }
+        else { other.hidden = true; other.value = ''; paper.settings.className = t.value; }
+        touch(); return;
+      }
+      var p = t.getAttribute('data-p'); if (!p) return;
       var kind = t.getAttribute('data-t'), val;
       if (kind === 'correct') { if (!t.checked) return; val = parseInt(t.getAttribute('data-v'), 10); }
       else if (kind === 'bool') val = t.checked;

@@ -76,6 +76,13 @@ To test locally with the functions, run `npx vercel dev`.
 - Print prints only the paper (A4). Download PDF uses html2pdf.js loaded from a CDN when online; if it cannot load,
   the print dialog opens so you can choose "Save as PDF". Everything else works fully offline.
 
+## Classes
+
+Every paper has a **Class** picker: Nursery, KG / Prep, Class 1–10, 1st Year (Part 1 · Class 11), 2nd Year (Part 2 · Class 12),
+or **Other** to type any class. The paper prints it in its own language ("Class: 6" / "جماعت: 6", "فرسٹ ایئر", "نرسری").
+Filters, the Paper Library and Reports group and sort by class in this order; older typed values such as "6th", "Grade 8"
+or "FSc Part 1" are recognised as Class 6, Class 8 and 1st Year. The list is `Classes` in `js/translations.js`.
+
 ## Paper Library and Reports
 
 - **Paper Library** (sidebar): saved copies of papers to reuse later. Save from My Papers (⋯ → Save to Library) or the View

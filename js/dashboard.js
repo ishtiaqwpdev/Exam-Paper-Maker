@@ -92,15 +92,10 @@
     c.id = PaperBuilder.uid('p'); c.ownerId = user.id; c.createdAt = new Date().toISOString();
     PMStorage.savePaper(c, user); toast('A new copy is ready to edit'); goto('builder', c.id);
   }
-  function classKey(c) {
-    var t = String(c || '').trim(); if (!t) return 'No class';
-    var m = /\d+/.exec(t); return m ? 'Class ' + parseInt(m[0], 10) : t.replace(/\s+/g, ' ');
-  }
-  function classSort(a, b) {
-    var na = /^Class (\d+)$/.exec(a), nb = /^Class (\d+)$/.exec(b);
-    if (na && nb) return na[1] - nb[1]; if (na) return -1; if (nb) return 1;
-    if (a === 'No class') return 1; if (b === 'No class') return -1; return a.localeCompare(b);
-  }
+  // Classes are grouped and ordered Nursery → KG → Class 1…10 → 1st Year → 2nd Year (see Classes in translations.js)
+  function classKey(c) { return Classes.key(c); }
+  function classSort(a, b) { return Classes.sort(a, b); }
+  function classLabel(k) { return k === 'KG' ? 'KG / Prep' : k; }
   function countQuestions(p) {
     return (p.sections || []).reduce(function (n, s) {
       if (s.enabled === false) return n;
@@ -180,21 +175,21 @@
     el.querySelectorAll('.grid').forEach(function (g) { bindCards(g, user, goto, refresh); });
   }
 
-  function options(vals, sel, label) { return '<option value="">' + label + '</option>' + vals.map(function (v) { return '<option' + (v === sel ? ' selected' : '') + ' value="' + esc(v) + '">' + esc(v) + '</option>'; }).join(''); }
+  function options(vals, sel, label, labelFn) { return '<option value="">' + label + '</option>' + vals.map(function (v) { return '<option' + (v === sel ? ' selected' : '') + ' value="' + esc(v) + '">' + esc(labelFn ? labelFn(v) : v) + '</option>'; }).join(''); }
   function uniq(arr) { return arr.filter(function (v, i) { return v && arr.indexOf(v) === i; }).sort(); }
 
   function viewPapers(el, user, goto, adminAll) {
     var all = PMStorage.papersFor(user);
-    var classes = uniq(all.map(function (p) { return p.settings.className; })), subs = uniq(all.map(function (p) { return p.settings.subject; }));
+    var classes = uniq(all.map(function (p) { return classKey(p.settings.className); })).sort(classSort), subs = uniq(all.map(function (p) { return p.settings.subject; }));
     el.innerHTML = '<div class="toolbar"><input class="inp search" id="f-q" type="search" placeholder="Search by paper title…" aria-label="Search papers" value="' + esc(state.q) + '">' +
-      '<select class="inp" id="f-c" aria-label="Filter by class">' + options(classes, state.cls, 'All classes') + '</select>' +
+      '<select class="inp" id="f-c" aria-label="Filter by class">' + options(classes, state.cls, 'All classes', classLabel) + '</select>' +
       '<select class="inp" id="f-s" aria-label="Filter by subject">' + options(subs, state.subj, 'All subjects') + '</select>' +
       '<select class="inp" id="f-l" aria-label="Filter by language"><option value="">All languages</option><option value="en"' + (state.lang === 'en' ? ' selected' : '') + '>English</option><option value="ur"' + (state.lang === 'ur' ? ' selected' : '') + '>Urdu</option></select>' +
       '<select class="inp" id="f-o" aria-label="Sort"><option value="updated">Most recently updated</option><option value="title"' + (state.sort === 'title' ? ' selected' : '') + '>Title A–Z</option><option value="created"' + (state.sort === 'created' ? ' selected' : '') + '>Newest created</option></select>' +
       '<button class="btn primary" data-go="new">+ New paper</button></div><div class="grid" id="list"></div>';
     function draw() {
       var list = all.filter(function (p) {
-        return (!state.q || p.settings.title.toLowerCase().indexOf(state.q.toLowerCase()) >= 0) && (!state.cls || p.settings.className === state.cls) && (!state.subj || p.settings.subject === state.subj) && (!state.lang || p.lang === state.lang);
+        return (!state.q || p.settings.title.toLowerCase().indexOf(state.q.toLowerCase()) >= 0) && (!state.cls || classKey(p.settings.className) === state.cls) && (!state.subj || p.settings.subject === state.subj) && (!state.lang || p.lang === state.lang);
       });
       list.sort(function (a, b) { return state.sort === 'title' ? a.settings.title.localeCompare(b.settings.title) : state.sort === 'created' ? b.createdAt.localeCompare(a.createdAt) : b.updatedAt.localeCompare(a.updatedAt); });
       el.querySelector('#list').innerHTML = list.length ? list.map(function (p) { return card(p, user, adminAll); }).join('') : '<div style="grid-column:1/-1">' + emptyState(all.length > 0) + '</div>';
@@ -211,9 +206,20 @@
   }
 
   function viewNew(el, user, goto) {
-    el.innerHTML = '<div class="panel form-card"><h3 style="margin-bottom:12px">Start a new paper</h3><div class="field"><label>Paper title</label><input id="np-title" placeholder="e.g. Grade 6 Science Examination"></div><div class="field"><label>Language</label><select id="np-lang"><option value="en">English (LTR)</option><option value="ur">اردو (RTL)</option></select></div><button class="btn primary" id="np-go">Create and open builder</button></div>';
+    el.innerHTML = '<div class="panel form-card"><h3 style="margin-bottom:12px">Start a new paper</h3>' +
+      '<div class="field"><label for="np-title">Paper title</label><input id="np-title" placeholder="e.g. Class 6 Science — Mid Term"></div>' +
+      '<div class="input-row"><div class="field"><label for="np-class">Class</label><select id="np-class">' + Classes.options('', 'Select class…') + '</select>' +
+        '<input id="np-class-other" type="text" dir="auto" placeholder="Type the class, e.g. O Level" hidden style="margin-top:6px"></div>' +
+        '<div class="field"><label for="np-subj">Subject</label><input id="np-subj" dir="auto" placeholder="e.g. Science"></div></div>' +
+      '<div class="field"><label for="np-lang">Language</label><select id="np-lang"><option value="en">English (LTR)</option><option value="ur">اردو (RTL)</option></select></div>' +
+      '<button class="btn primary" id="np-go">Create and open builder</button></div>';
+    var sel = el.querySelector('#np-class'), other = el.querySelector('#np-class-other');
+    sel.onchange = function () { other.hidden = sel.value !== '__other'; if (!other.hidden) other.focus(); };
     el.querySelector('#np-go').onclick = function () {
-      var p = PaperBuilder.newPaper(user.id, el.querySelector('#np-lang').value); p.settings.title = el.querySelector('#np-title').value.trim() || 'Untitled Paper';
+      var p = PaperBuilder.newPaper(user.id, el.querySelector('#np-lang').value);
+      p.settings.title = el.querySelector('#np-title').value.trim() || 'Untitled Paper';
+      p.settings.className = sel.value === '__other' ? other.value.trim() : sel.value;
+      p.settings.subject = el.querySelector('#np-subj').value.trim();
       PMStorage.savePaper(p, user); goto('builder', p.id);
     };
   }
@@ -361,7 +367,7 @@
     var classes = uniq(all.map(function (p) { return classKey(p.settings.className); })).sort(classSort), subs = uniq(all.map(function (p) { return p.settings.subject; }));
     el.innerHTML = '<div class="lib-intro"><div><h2>Paper Library</h2><p class="muted">Your saved papers, ready to reuse. <b>Use this paper</b> makes a fresh copy to edit — the library copy never changes. Save a paper here from <b>My Papers</b> (⋯ → Save to Library) or from the View page.</p></div><div class="lib-count"><b>' + all.length + '</b><span>saved paper' + (all.length === 1 ? '' : 's') + '</span></div></div>' +
       (all.length ? '<div class="toolbar"><input class="inp search" id="l-q" type="search" placeholder="Search the library…" aria-label="Search the library" value="' + esc(libState.q) + '">' +
-        '<select class="inp" id="l-c" aria-label="Filter by class">' + options(classes, libState.cls, 'All classes') + '</select>' +
+        '<select class="inp" id="l-c" aria-label="Filter by class">' + options(classes, libState.cls, 'All classes', classLabel) + '</select>' +
         '<select class="inp" id="l-s" aria-label="Filter by subject">' + options(subs, libState.subj, 'All subjects') + '</select></div>' : '') +
       '<div id="lib"></div>';
     var box = el.querySelector('#lib');
