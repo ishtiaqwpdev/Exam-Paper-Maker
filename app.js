@@ -241,6 +241,15 @@
     Dashboard.render(user, current.view, current.id, goto, function () { var v = current; boot(); goto(v.view, v.id); });
   }
 
+  // Coming back to this tab: fetch the latest papers (made on another device) and redraw — never while editing a paper.
+  var lastSync = Date.now();
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible' || !PMStorage.isCloud() || !PMStorage.currentUser()) return;
+    if (current.view === 'builder' || Date.now() - lastSync < 20000 || PMStorage.syncStatus().pending) return;
+    lastSync = Date.now();
+    PMStorage.reload().then(function (r) { if (!r || r.error || current.view === 'builder' || !PMStorage.currentUser() || document.querySelector('.modal-bg')) return; go(); });
+  });
+
   // If the server says the login has expired (e.g. password changed on another device), go back to the login page.
   window.__onSessionExpired = function () { authScreen('login'); showErr('Your session has ended. Please log in again.'); };
 

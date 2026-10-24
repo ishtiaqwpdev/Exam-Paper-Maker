@@ -24,6 +24,7 @@
       m.querySelector('[data-ok]').focus();
     });
   }
+  function cmp(a, b) { return String(a == null ? '' : a).localeCompare(String(b == null ? '' : b)); }   // never fails on missing values
   function fmtDate(iso) { try { return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }); } catch (e) { return ''; } }
   function langName(l) { return l === 'ur' ? 'Urdu' : 'English'; }
   function initials(n) { return (n || '?').split(/\s+/).map(function (x) { return x[0]; }).slice(0, 2).join('').toUpperCase(); }
@@ -169,8 +170,8 @@
 
   /* ---------- views ---------- */
   function viewDashboard(el, user, goto) {
-    var all = PMStorage.papersFor(user).sort(function (a, b) { return b.updatedAt.localeCompare(a.updatedAt); });
-    var created = all.slice().sort(function (a, b) { return b.createdAt.localeCompare(a.createdAt); }).slice(0, 3);
+    var all = PMStorage.papersFor(user).sort(function (a, b) { return cmp(b.updatedAt, a.updatedAt); });
+    var created = all.slice().sort(function (a, b) { return cmp(b.createdAt, a.createdAt); }).slice(0, 3);
     var week = Date.now() - 7 * 864e5;
     var recentCount = all.filter(function (p) { return new Date(p.updatedAt).getTime() > week; }).length;
     var subjects = {}; all.forEach(function (p) { if (p.settings.subject) subjects[p.settings.subject] = 1; });
@@ -201,9 +202,9 @@
       '<button class="btn primary" data-go="new">+ New paper</button></div><div class="grid" id="list"></div>';
     function draw() {
       var list = all.filter(function (p) {
-        return (!state.q || p.settings.title.toLowerCase().indexOf(state.q.toLowerCase()) >= 0) && (!state.cls || classKey(p.settings.className) === state.cls) && (!state.subj || p.settings.subject === state.subj) && (!state.lang || p.lang === state.lang);
+        return (!state.q || String(p.settings.title || '').toLowerCase().indexOf(state.q.toLowerCase()) >= 0) && (!state.cls || classKey(p.settings.className) === state.cls) && (!state.subj || p.settings.subject === state.subj) && (!state.lang || p.lang === state.lang);
       });
-      list.sort(function (a, b) { return state.sort === 'title' ? a.settings.title.localeCompare(b.settings.title) : state.sort === 'created' ? b.createdAt.localeCompare(a.createdAt) : b.updatedAt.localeCompare(a.updatedAt); });
+      list.sort(function (a, b) { return state.sort === 'title' ? cmp(a.settings.title, b.settings.title) : state.sort === 'created' ? cmp(b.createdAt, a.createdAt) : cmp(b.updatedAt, a.updatedAt); });
       el.querySelector('#list').innerHTML = list.length ? list.map(function (p) { return card(p, user, adminAll); }).join('') : '<div style="grid-column:1/-1">' + emptyState(all.length > 0) + '</div>';
       var nb = el.querySelector('[data-nav-new]'); if (nb) nb.onclick = function () { goto('new'); };
     }
@@ -524,7 +525,7 @@
         var mine = papers.filter(function (p) { return p.ownerId === u.id; });
         var last = mine.reduce(function (m, p) { return p.updatedAt > m ? p.updatedAt : m; }, '');
         return { name: u.name, email: u.email, role: u.role, papers: mine.length, classes: uniq(mine.map(function (p) { return classKey(p.settings.className); })).filter(function (c) { return c !== 'No class'; }).sort(classSort), subjects: uniq(mine.map(function (p) { return (p.settings.subject || '').trim(); })), questions: mine.reduce(function (n, p) { return n + countQuestions(p); }, 0), last: last };
-      }).sort(function (a, b) { return b.papers - a.papers || a.name.localeCompare(b.name); });
+      }).sort(function (a, b) { return b.papers - a.papers || cmp(a.name, b.name); });
       box.innerHTML = '<div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Role</th><th>Papers</th><th>Questions</th><th>Classes</th><th>Subjects</th><th>Last active</th></tr></thead><tbody>' + teacherRows.map(function (t) {
         return '<tr><td><b>' + esc(t.name) + '</b><br><span class="muted">' + esc(t.email) + '</span></td><td><span class="tag">' + esc(t.role) + '</span></td><td>' + t.papers + '</td><td>' + t.questions + '</td><td>' + (esc(t.classes.join(', ')) || '–') + '</td><td dir="auto">' + (esc(t.subjects.join(', ')) || '–') + '</td><td>' + (t.last ? fmtDate(t.last) : '–') + '</td></tr>';
       }).join('') + '</tbody></table></div>';

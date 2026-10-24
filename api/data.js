@@ -33,6 +33,10 @@ function needAdmin(u) { if (u.role !== 'admin') fail(403, 'Only an admin can do 
 function cleanPaper(p) {
   if (!p || typeof p !== 'object' || typeof p.id !== 'string' || !/^[\w-]{3,80}$/.test(p.id)) fail(400, 'This paper could not be saved (bad data).', 'bad_paper');
   if (!p.settings || !Array.isArray(p.sections)) fail(400, 'This paper could not be saved (bad data).', 'bad_paper');
+  // only real uploaded images as logos (no outside links), and only known paper kinds
+  if (p.settings.logo && !/^data:image\/(png|jpe?g|gif|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$/i.test(String(p.settings.logo))) p.settings.logo = '';
+  if (p.kind && p.kind !== 'library' && p.kind !== 'template') delete p.kind;
+  if (!p.show || typeof p.show !== 'object') p.show = {};
   const json = JSON.stringify(p);
   if (Buffer.byteLength(json) > MAX_PAPER_BYTES) fail(413, 'This paper is too large to save (try a smaller logo).', 'too_large');
   return p;
@@ -53,6 +57,8 @@ async function upsertPaper(me, p) {
   }
   p.ownerId = owner;
   const created = p.createdAt && !isNaN(Date.parse(p.createdAt)) ? p.createdAt : new Date().toISOString();
+  p.createdAt = created;
+  if (!p.settings.title) p.settings.title = 'Untitled Paper';
   p.updatedAt = new Date().toISOString();
   await DB.query(
     `INSERT INTO pm_papers (id, owner_id, data, created_at, updated_at) VALUES ($1, $2, $3::jsonb, $4, now())

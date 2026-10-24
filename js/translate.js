@@ -313,6 +313,7 @@
 
   /* Returns { paper: translated copy, missing: [...], source, target } using cached translations only. */
   function view(paper) {
+    paper = Object.assign({ settings: {}, sections: [] }, paper);
     var missing = [], p = JSON.parse(JSON.stringify(paper));
     var all = SETTINGS_FIELDS.map(function (k) { return paper.settings[k]; });
     // the default section titles don't say much about what the teacher typed; weigh content first

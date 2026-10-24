@@ -84,7 +84,7 @@
 
   function render(paper, opts) {
     window.__showKeys = !!(opts && opts.showKeys);
-    var S = paper.settings, sh = paper.show, lang = paper.lang, t = Translations.get(lang);
+    var S = paper.settings || {}, sh = paper.show || {}, lang = paper.lang, t = Translations.get(lang);
     var h = '<div class="paper ' + lang + '" dir="' + t.dir + '">';
     if (sh.logo && S.logo) h += '<img class="p-logo" src="' + esc(S.logo) + '" alt="Logo">';
     if (sh.school && S.school) h += '<div class="p-school">' + esc(S.school) + '</div>';
@@ -104,12 +104,12 @@
     if (sh.instructions && S.instructions) h += '<div class="p-instr"><b>' + t.instructions + ':</b> ' + nl(S.instructions) + '</div>';
 
     var qNo = 0;
-    paper.sections.forEach(function (s) {
+    (paper.sections || []).forEach(function (s) {
       if (!s.enabled) return;
       if (['instr', 'custom'].indexOf(s.type) < 0) qNo++;
       h += renderSection(s, qNo, lang);
     });
-    if (!paper.sections.some(function (s) { return s.enabled; })) h += '<p class="muted" style="text-align:center;margin-top:40px">Add sections to see them here.</p>';
+    if (!(paper.sections || []).some(function (s) { return s.enabled; })) h += '<p class="muted" style="text-align:center;margin-top:40px">Add sections to see them here.</p>';
     if (sh.preparedBy && S.preparedBy) h += '<div class="p-footer"><span>' + t.prepared + ': ' + esc(S.preparedBy) + '</span><span></span></div>';
     return h + '</div>';
   }
